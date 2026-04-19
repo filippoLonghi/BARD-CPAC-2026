@@ -1,3 +1,35 @@
+Metadata-Version: 2.4
+Name: bard-cpac
+Version: 0.1.0
+Summary: BARD after-score pipeline: audio performance analysis to story and live visuals.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: python-osc>=1.9.3
+Provides-Extra: api
+Requires-Dist: fastapi>=0.115.0; extra == "api"
+Requires-Dist: python-multipart>=0.0.9; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.30.0; extra == "api"
+Provides-Extra: cloud
+Requires-Dist: google-cloud-storage>=2.18.0; extra == "cloud"
+Requires-Dist: google-genai>=1.27.0; extra == "cloud"
+Provides-Extra: local-ai
+Requires-Dist: accelerate>=0.31.0; extra == "local-ai"
+Requires-Dist: bitsandbytes>=0.43.0; extra == "local-ai"
+Requires-Dist: librosa>=0.10.2; extra == "local-ai"
+Requires-Dist: numpy>=1.26.0; extra == "local-ai"
+Requires-Dist: protobuf; extra == "local-ai"
+Requires-Dist: sentencepiece; extra == "local-ai"
+Requires-Dist: torch>=2.3.0; extra == "local-ai"
+Requires-Dist: transformers>=4.41.0; extra == "local-ai"
+Provides-Extra: voice
+Requires-Dist: edge-tts>=7.0.0; extra == "voice"
+Requires-Dist: pygame>=2.6.0; extra == "voice"
+Provides-Extra: dev
+Requires-Dist: ruff>=0.8.0; extra == "dev"
+Dynamic: license-file
+
 # BARD-CPAC-2026
 
 BARD is an after-score prototype: it analyzes a unique human performance and gives it a visible narrative form through story fragments and live visual atmosphere.
@@ -23,7 +55,7 @@ Install Python dependencies:
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[api,cloud]"
+python -m pip install -e ".[api,cloud,local-ai]"
 ```
 
 If `py` is not available on your machine, install Python and use `python -m venv .venv`.
@@ -37,14 +69,13 @@ apps/processing/bard_story_visuals
 Then run the prototype-compatible pipeline:
 
 ```powershell
-python -m pip install -e ".[local-ai]"
 python -m bard_core run-local --audio data/audio/audio.mp3 --audio-provider clap --story-provider local --send-osc
 ```
 
-For the recommended first GCP/Vertex smoke test:
+For the GCP/Vertex path:
 
 ```powershell
-python -m bard_core run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex
+python -m bard_core run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --send-osc
 ```
 
 Private env files are supported with `--env-file` before the command name.

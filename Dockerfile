@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN mkdir -p data/labelbanks
+COPY data/labelbanks/clap_unified_labelbank.json ./data/labelbanks/clap_unified_labelbank.json
+COPY data/labelbanks/clap_unified_labels.txt ./data/labelbanks/clap_unified_labels.txt
+
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -e ".[api,cloud]"
+
+CMD ["sh", "-c", "uvicorn bard_core.api:app --host 0.0.0.0 --port ${PORT}"]
