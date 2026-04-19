@@ -17,6 +17,7 @@ deploy/
 
 docs/
   architecture.md            System shape and future async design.
+  future_development.md      Roadmap, live-video direction, model options, team roles.
   gcp_setup.md               Exact GCP setup commands.
   project_structure.md       This file.
 

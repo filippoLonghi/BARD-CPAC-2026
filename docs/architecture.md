@@ -68,7 +68,7 @@ local performance machine
 -> local OSC/WebSocket bridge for Processing or TouchDesigner
 ```
 
-The current `api.py` is synchronous on purpose. It is the smallest deployable step. If `BARD_STORAGE_BUCKET` is set, Gemini audio analysis uploads the audio to Cloud Storage and each run uploads its JSON outputs there too. Once this works, split it into:
+The current `api.py` is synchronous on purpose. It is the smallest deployable step. Small local audio files are sent to Gemini inline; larger files can be uploaded to Cloud Storage when `BARD_STORAGE_BUCKET` is set. Each run can also upload JSON outputs to Cloud Storage. Once this works, split it into:
 
 - request API
 - audio/story worker
