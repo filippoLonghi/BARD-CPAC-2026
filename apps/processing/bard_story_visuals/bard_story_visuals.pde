@@ -118,6 +118,8 @@ void draw() {
     p.update(currentVals.particleSpeedY, currentVals.chaos);
     p.display(currentVals.particleColor);
   }
+  
+  drawCurrentSegmentImages();
 
   // 3. LOGICA PRINCIPALE
   if (!isPlaying) {
@@ -272,6 +274,28 @@ void drawWords() {
   blendMode(BLEND);
 }
 
+void drawCurrentSegmentImages() {
+  if (!isPlaying || currentSegmentIndex < 0 || currentSegmentIndex >= playlist.size()) return;
+  Segmento seg = playlist.get(currentSegmentIndex);
+  if (seg.imageLayers == null || seg.imageLayers.size() == 0) return;
+  
+  for (ImageLayer layer : seg.imageLayers) {
+    if (layer.role.equals("background")) {
+      blendMode(BLEND);
+      layer.displayBackground();
+    }
+  }
+  
+  blendMode(ADD);
+  float phase = millis() * 0.001f;
+  for (ImageLayer layer : seg.imageLayers) {
+    if (!layer.role.equals("background")) {
+      layer.displayOverlay(phase);
+    }
+  }
+  blendMode(BLEND);
+}
+
 // --------------------------------------------------------
 // OSC EVENT
 // --------------------------------------------------------
@@ -300,9 +324,25 @@ void oscEvent(OscMessage msg) {
     }*/
     String cat = msg.get(0).stringValue();
     String txt = msg.get(1).stringValue();
-    playlist.add(new Segmento(cat, txt));
+    playlist.add(new Segmento(playlist.size() + 1, cat, txt));
     println(">>> Ricevuto: " + txt);     
     
+    return;
+  }
+  
+  if (msg.checkAddrPattern("/image")) {
+    int segmentId = msg.get(0).intValue();
+    int layerIndex = msg.get(1).intValue();
+    String role = msg.get(2).stringValue();
+    String path = msg.get(3).stringValue();
+    
+    Segmento seg = findSegment(segmentId);
+    if (seg != null) {
+      seg.addImage(layerIndex, role, path);
+      println(">>> Ricevuta immagine per segmento " + segmentId + ": " + role + " -> " + path);
+    } else {
+      println(">>> Immagine ignorata, segmento non trovato: " + segmentId);
+    }
     return;
   }
   
@@ -314,6 +354,13 @@ void oscEvent(OscMessage msg) {
     }
     return;
   }
+}
+
+Segmento findSegment(int segmentId) {
+  for (Segmento seg : playlist) {
+    if (seg.id == segmentId) return seg;
+  }
+  return null;
 }
 
 // --------------------------------------------------------

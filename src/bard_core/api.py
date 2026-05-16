@@ -27,6 +27,9 @@ async def create_run_sync(
     ratio: str = Query("1/5"),
     audio_provider: str = Query("gemini", pattern="^(clap|gemini)$"),
     story_provider: str = Query("vertex", pattern="^(local|mistral|vertex|gemini)$"),
+    generate_images: bool = Query(False),
+    image_provider: str = Query("none", pattern="^(none|replicate|imagen|openverse)$"),
+    max_image_assets: int = Query(3, ge=1, le=6),
 ) -> dict:
     settings = BardSettings.from_env()
     work_dir = Path(tempfile.mkdtemp(prefix="bard-api-"))
@@ -41,6 +44,9 @@ async def create_run_sync(
         ratio=ratio,
         audio_provider=audio_provider,
         story_provider=story_provider,
+        generate_images=generate_images,
+        image_provider=image_provider,
+        max_image_assets=max_image_assets,
         send_osc=False,
     )
     return result.to_dict()

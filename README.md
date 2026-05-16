@@ -58,6 +58,7 @@ runs/<timestamp>/
   result.json
   music_segments.json
   story.json
+  scene_cards.json
   full_story.txt
 ```
 
@@ -80,6 +81,7 @@ Current OSC messages:
 ```text
 /config/duration <float seconds>
 /segment <string mood> <string text>
+/image <int segment_id> <int layer_index> <string role> <string local_path>
 /start
 ```
 
@@ -100,10 +102,39 @@ python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp
 
 This runs CLAP and Mistral locally. It can be slow on CPU and may require a CUDA-enabled PyTorch install plus a Hugging Face token. For the main project direction, prefer the Vertex/GCP path.
 
+## Optional Image Keyframes
+
+Image assets are opt-in so normal runs do not spend money. Start with the free Openverse retrieval path:
+
+```powershell
+python -m bard_core generate-images --fake-card --fake-card-name cat-wood-sun --image-provider openverse --write-input-only --out-dir runs\fake-card-preview
+python -m bard_core generate-images --fake-card --image-provider openverse --out-dir runs\fake-image-test
+python -m bard_core generate-images --list-fake-cards --image-provider openverse
+python -m bard_core generate-images --fake-card --fake-card-name boat-fog-lantern --image-provider openverse --out-dir runs\boat-image-test
+```
+
+Then try generated images with FLUX or Imagen:
+
+```powershell
+python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-provider replicate
+python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-provider imagen
+```
+
+To run the full audio/story/image pipeline:
+
+```powershell
+python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider openverse
+python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider replicate
+python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider imagen
+```
+
+See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, output files, and debugging.
+
 ## Documents
 
 - [docs/gcp_setup.md](docs/gcp_setup.md): team setup, GCP, local env, Cloud Run.
 - [docs/future_development.md](docs/future_development.md): roadmap, live pipeline, model freedom, team roles.
+- [docs/image_generation.md](docs/image_generation.md): FLUX, Imagen, Openverse, scene cards, and Processing image OSC.
 - [docs/architecture.md](docs/architecture.md): current technical architecture and provider structure.
 - [docs/project_structure.md](docs/project_structure.md): where files live in the repo.
 - [configs/local.example.env](configs/local.example.env): local private env template.

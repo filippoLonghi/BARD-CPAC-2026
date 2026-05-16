@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "image_provider": "imagen",
+    "planned_image_assets": 3,
+    "generated_image_assets": 3,
+    "failed_image_assets": 0,
+    "estimated_cost_usd": 0.06,
+    "estimated_cost_message": "Image estimate: 3 Imagen 4 Fast image(s) at about $0.02/image ~= $0.0600."
+  },
+  "images": [
+    {
+      "segment_id": 1,
+      "layer_index": 0,
+      "role": "subject",
+      "label": "black cat",
+      "status": "generated",
+      "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\imagen-cat-test-full\\images\\segment_001_00_subject_black_cat.png",
+      "remote_url": null,
+      "source_url": null,
+      "license": null,
+      "creator": null,
+      "error": null
+    },
+    {
+      "segment_id": 1,
+      "layer_index": 1,
+      "role": "background",
+      "label": "small wood",
+      "status": "generated",
+      "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\imagen-cat-test-full\\images\\segment_001_01_background_small_wood.png",
+      "remote_url": null,
+      "source_url": null,
+      "license": null,
+      "creator": null,
+      "error": null
+    },
+    {
+      "segment_id": 1,
+      "layer_index": 2,
+      "role": "symbol",
+      "label": "low sun",
+      "status": "generated",
+      "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\imagen-cat-test-full\\images\\segment_001_02_symbol_low_sun.png",
+      "remote_url": null,
+      "source_url": null,
+      "license": null,
+      "creator": null,
+      "error": null
+    }
+  ]
+}

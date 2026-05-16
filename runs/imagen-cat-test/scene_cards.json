@@ -1,0 +1,31 @@
+[
+  {
+    "segment_id": 1,
+    "start_s": 0.0,
+    "end_s": 10.0,
+    "mood": "CALM",
+    "story_text": "A black cat enters a small wood while a low sun opens behind the branches.",
+    "music_prompt": null,
+    "visual_motif": "cat in the wood at sunset",
+    "palette": "deep green, charcoal black, muted amber",
+    "motion": "slow drifting layers with soft blur",
+    "image_prompt": "A rough black cat, a quiet wood, and a low warm sun in an unfinished painterly style.",
+    "image_assets": [
+      {
+        "role": "subject",
+        "label": "black cat",
+        "prompt": "A simple recognizable black cat silhouette, unfinished painterly sketch texture, soft rough edges, plain dark empty background, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "imagen",
+        "model": "imagen-4.0-fast-generate-001",
+        "status": "generated",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\imagen-cat-test\\images\\segment_001_00_subject_black_cat.png",
+        "remote_url": null,
+        "source_url": null,
+        "license": null,
+        "creator": null,
+        "error": null
+      }
+    ]
+  }
+]

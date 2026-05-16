@@ -17,6 +17,19 @@ STORY_SCHEMA = {
                     "mood": {"type": "STRING", "enum": MOOD_LABELS},
                     "text": {"type": "STRING"},
                     "image_prompt": {"type": "STRING"},
+                    "image_assets": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "role": {"type": "STRING", "enum": ["background", "subject", "symbol"]},
+                                "label": {"type": "STRING"},
+                                "prompt": {"type": "STRING"},
+                                "negative_prompt": {"type": "STRING"},
+                            },
+                            "required": ["role", "label", "prompt"],
+                        },
+                    },
                     "visual_motif": {"type": "STRING"},
                     "palette": {"type": "STRING"},
                     "motion": {"type": "STRING"},
@@ -61,7 +74,12 @@ Rules:
 - Do not write a literal explanation of music. Treat the performance as a hidden narrative force.
 - Keep the tale coherent: same world, protagonist/presence, mystery, and final resolution.
 - Pick each mood from: {", ".join(MOOD_LABELS)}.
-- Also include image_prompt, visual_motif, palette, and motion for future abstract image/video generation.
+- Also include image_prompt, visual_motif, palette, motion, and image_assets for future image/video generation.
+- image_assets should contain 1 to 3 separate visual layers with roles from: background, subject, symbol.
+- Make the assets recognizable but unfinished: rough painterly/sketch texture, soft edges, simple composition.
+- If the story mentions an important being/object/place/light source, split them into separate assets when useful.
+- For subject and symbol assets, prefer one recognizable object on a dark or plain empty background for live blending.
+- Avoid text, letters, logos, watermarks, instruments, or photorealistic finished scenes in image prompts.
 
 Music emotional timeline:
 {segment_lines}
@@ -95,7 +113,14 @@ Music emotional timeline:
                 visual_motif=item.get("visual_motif"),
                 palette=item.get("palette"),
                 motion=item.get("motion"),
+                image_assets=_parse_image_assets(item.get("image_assets", [])),
             )
         )
     full_story = str(parsed.get("full_story") or "\n\n".join(fragment.text for fragment in fragments)).strip()
     return fragments, full_story
+
+
+def _parse_image_assets(raw_assets: object):
+    from ..contracts import image_assets_from_json
+
+    return image_assets_from_json(raw_assets)
