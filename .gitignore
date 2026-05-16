@@ -12,7 +12,7 @@ secrets/
 *-key.json
 
 # Generated pipeline outputs
-#runs/
+runs/
 outputs/
 /audioAnalysis/clap_output.json
 /story.json
