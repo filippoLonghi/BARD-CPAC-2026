@@ -24,7 +24,7 @@ def compute_chunk_and_words(duration_s: float | None, ratio: str, reading_wpm: f
         chunk_s = max(1.0, round(duration_s * ratio_value))
     else:
         chunk_s = max(1.0, default_chunk_s)
-    words = max(5, int(round(chunk_s * (reading_wpm / 60.0))))
+    words = min(20, int(round(chunk_s * (reading_wpm / 60.0))))
     return float(chunk_s), words
 
 

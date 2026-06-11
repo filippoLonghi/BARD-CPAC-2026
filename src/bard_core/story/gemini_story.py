@@ -4,32 +4,6 @@ from ..config import BardSettings
 from ..contracts import MOOD_LABELS, MusicSegment, StoryFragment
 from ..utils import extract_json
 
-
-STORY_SCHEMA = {
-    "type": "OBJECT",
-    "properties": {
-        "fragments": {
-            "type": "ARRAY",
-            "items": {
-                "type": "OBJECT",
-                "properties": {
-                    "id": {"type": "INTEGER"},
-                    "mood": {"type": "STRING", "enum": MOOD_LABELS},
-                    "text": {"type": "STRING"},
-                    "image_prompt": {"type": "STRING"},
-                    "visual_motif": {"type": "STRING"},
-                    "palette": {"type": "STRING"},
-                    "motion": {"type": "STRING"},
-                },
-                "required": ["id", "mood", "text"],
-            },
-        },
-        "full_story": {"type": "STRING"},
-    },
-    "required": ["fragments", "full_story"],
-}
-
-
 def generate_story_with_gemini(
     segments: list[MusicSegment],
     settings: BardSettings,
@@ -44,58 +18,89 @@ def generate_story_with_gemini(
     except ImportError as exc:
         raise RuntimeError("Vertex story generation requires `pip install -e .[cloud]`.") from exc
 
-    client = genai.Client(vertexai=True, project=settings.gcp_project_id, location=settings.gcp_location)
-    segment_lines = "\n".join(
-        f"{seg.id}. time={seg.start_s}-{seg.end_s}, mood_hint={seg.mood_hint}, feeling={seg.music_prompt}"
-        for seg in segments
-    )
-    prompt = f"""
+    apiClient = genai.Client(vertexai=True, project=settings.gcp_project_id, location=settings.gcp_location)
+    
+    totalSegmentsCount = len(segments)
+    generatedStorySoFar = ""
+    storyFragmentsList: list[StoryFragment] = []
+
+    for currentIndex, currentSegment in enumerate(segments):
+        # 1. Narrative phase calculation (Now in English)
+        if currentIndex == 0:
+            narrativePhase = "BEGINNING: Introduce the abstract world, the mystery, or the main presence. Establish the opening."
+        elif currentIndex == totalSegmentsCount - 1:
+            narrativePhase = "ENDING: Resolve the narrative tension, conclude the journey, and write the definitive ending of the story."
+        else:
+            narrativePhase = "MIDDLE: Develop the plot based on previous events, maintaining high consistency."
+
+        # 2. Dynamic Prompt (Fully in English)
+        dynamicPrompt = f"""
 BARD is an after-score: it gives visible narrative form to one unique human performance.
-Generate one coherent abstract tale that follows the emotional arc below.
+You are generating a story piece by piece. 
 
 Rules:
 - Return JSON only.
-- Create exactly {len(segments)} fragments, one per music segment.
-- Each fragment should be about {words_per_fragment} words and end with a complete sentence.
-- Do not mention instruments, recording technology, audio analysis, CLAP, Gemini, or AI.
-- Do not write a literal explanation of music. Treat the performance as a hidden narrative force.
-- Keep the tale coherent: same world, protagonist/presence, mystery, and final resolution.
-- Pick each mood from: {", ".join(MOOD_LABELS)}.
-- Also include image_prompt, visual_motif, palette, and motion for future abstract image/video generation.
+- Write EXACTLY one fragment of about {words_per_fragment} words, ending with a complete sentence.
+- Do not mention instruments, recording technology, audio analysis, Gemini, or AI.
+- You must STRICTLY continue the narrative from the "Story Generated So Far". Keep the same world and entities.
 
-Music emotional timeline:
-{segment_lines}
+Current State:
+- Current segment: {currentIndex + 1} of {totalSegmentsCount}.
+- Narrative phase: {narrativePhase}.
+
+Music emotional timeline for this segment:
+time={currentSegment.start_s}-{currentSegment.end_s}, mood_hint={currentSegment.mood_hint}, feeling={currentSegment.music_prompt}
+
+Story Generated So Far (You MUST continue from here without repeating what has already been said):
+{generatedStorySoFar if generatedStorySoFar else "[No previous story. Start now.]"}
 """
-    response = client.models.generate_content(
-        model=settings.vertex_text_model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.75,
-            response_mime_type="application/json",
-            response_schema=STORY_SCHEMA,
-        ),
-    )
-    parsed = extract_json(response.text or "{}")
-    raw_fragments = parsed.get("fragments", []) if isinstance(parsed, dict) else []
+        
+        # 3. Iterative API Call
+        apiResponse = apiClient.models.generate_content(
+            model=settings.vertex_text_model,
+            contents=dynamicPrompt,
+            config=types.GenerateContentConfig(
+                temperature=0.75,
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "mood": {"type": "STRING", "enum": MOOD_LABELS},
+                        "text": {"type": "STRING"},
+                        "image_prompt": {"type": "STRING"},
+                        "visual_motif": {"type": "STRING"},
+                        "palette": {"type": "STRING"},
+                        "motion": {"type": "STRING"},
+                    },
+                    "required": ["mood", "text"],
+                },
+            ),
+        )
+        
+        parsedJson = extract_json(apiResponse.text or "{}")
+        cleanedText = " ".join(str(parsedJson.get("text", "")).split())
+        
+        # 4. Contextual Update
+        if generatedStorySoFar:
+            generatedStorySoFar += "\n\n" + cleanedText
+        else:
+            generatedStorySoFar = cleanedText
 
-    fragments: list[StoryFragment] = []
-    by_id = {seg.id: seg for seg in segments}
-    for idx, item in enumerate(raw_fragments):
-        seg_id = int(item.get("id", idx + 1))
-        source_seg = by_id.get(seg_id)
-        fragments.append(
+        # 5. Safe fragment creation restoring original contract parameters
+        storyFragmentsList.append(
             StoryFragment(
-                id=seg_id,
-                mood=str(item.get("mood", source_seg.mood_hint if source_seg else "CALM")).upper(),
-                text=" ".join(str(item.get("text", "")).split()),
-                music_prompt=source_seg.music_prompt if source_seg else None,
-                start_s=source_seg.start_s if source_seg else None,
-                end_s=source_seg.end_s if source_seg else None,
-                image_prompt=item.get("image_prompt"),
-                visual_motif=item.get("visual_motif"),
-                palette=item.get("palette"),
-                motion=item.get("motion"),
+                id=currentSegment.id,
+                mood=str(parsedJson.get("mood", currentSegment.mood_hint if currentSegment else "CALM")).upper(),
+                text=cleanedText,
+                music_prompt=currentSegment.music_prompt if currentSegment else None,
+                start_s=currentSegment.start_s if currentSegment else None,
+                end_s=currentSegment.end_s if currentSegment else None,
+                image_prompt=parsedJson.get("image_prompt"),
+                visual_motif=parsedJson.get("visual_motif"),
+                palette=parsedJson.get("palette"),
+                motion=parsedJson.get("motion"),
             )
         )
-    full_story = str(parsed.get("full_story") or "\n\n".join(fragment.text for fragment in fragments)).strip()
-    return fragments, full_story
+
+    fullStory = generatedStorySoFar.strip()
+    return storyFragmentsList, fullStory
