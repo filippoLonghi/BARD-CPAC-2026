@@ -6,6 +6,7 @@ from pathlib import Path
 from .audio import analyze_with_clap, analyze_with_gemini
 from .config import BardSettings
 from .contracts import PipelineResult
+from .images import generate_images_for_fragments
 from .story import generate_story_with_gemini, generate_story_with_local_mistral
 from .storage import upload_directory_to_gcs
 from .transport import send_fragments_to_processing
@@ -22,6 +23,9 @@ def run_pipeline(
     ratio: str = "1/5",
     audio_provider: str | None = None,
     story_provider: str | None = None,
+    generate_images: bool = False,
+    image_provider: str | None = None,
+    max_image_assets: int | None = None,
     send_osc: bool = False,
     output_dir: Path | None = None,
 ) -> PipelineResult:
@@ -39,6 +43,9 @@ def run_pipeline(
 
     chosen_audio_provider = (audio_provider or settings.audio_provider).lower()
     chosen_story_provider = (story_provider or settings.story_provider).lower()
+    chosen_image_provider = (image_provider or settings.image_provider).lower() if generate_images else "none"
+    if generate_images and chosen_image_provider in {"", "none"}:
+        raise ValueError("Image generation is enabled. Choose --image-provider replicate, imagen, or openverse.")
 
     if chosen_audio_provider == "clap":
         music_segments = analyze_with_clap(resolved_audio, settings, chunk_s=chunk_s, top_k=1)
@@ -59,6 +66,8 @@ def run_pipeline(
         raise ValueError(f"Unsupported story provider: {chosen_story_provider}")
 
     run_id = make_run_id()
+    destination = output_dir or (settings.output_dir / run_id)
+
     result = PipelineResult(
         run_id=run_id,
         audio_path=str(resolved_audio),
@@ -74,7 +83,18 @@ def run_pipeline(
         },
     )
 
-    destination = output_dir or (settings.output_dir / run_id)
+    if generate_images:
+        image_metadata = generate_images_for_fragments(
+            fragments=fragments,
+            settings=settings,
+            output_dir=destination / "images",
+            provider=chosen_image_provider,
+            max_assets=max_image_assets or settings.max_image_assets,
+        )
+        result.metadata.update(image_metadata)
+    else:
+        result.metadata["image_provider"] = "none"
+
     result.write(destination)
     if settings.storage_bucket:
         gcs_uri = upload_directory_to_gcs(
@@ -91,5 +111,6 @@ def run_pipeline(
             host=settings.osc_host,
             port=settings.osc_port,
             slide_duration_s=chunk_s,
+            include_images=generate_images,
         )
     return result

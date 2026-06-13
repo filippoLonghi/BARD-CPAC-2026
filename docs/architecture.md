@@ -18,7 +18,8 @@ The new code lives in `src/bard_core`.
 - `audio/gemini_provider.py`: Vertex/Gemini audio analysis for a cloud-light path.
 - `story/local_mistral.py`: reuses the wrapped hackathon local Mistral story generator.
 - `story/gemini_story.py`: Vertex/Gemini story generation with future visual fields.
-- `transport/osc_sender.py`: sends `/config/duration`, `/segment`, and `/start` to Processing.
+- `images/`: optional image-keyframe providers for Replicate FLUX, Vertex Imagen, and Openverse retrieval.
+- `transport/osc_sender.py`: sends `/config/duration`, `/segment`, optional `/image`, and `/start` to Processing.
 - `api.py`: small FastAPI service for Cloud Run experiments.
 
 ## Local Modes
@@ -48,6 +49,7 @@ Python sends:
 ```text
 /config/duration <float seconds>
 /segment <string mood> <string text>
+/image <int segment_id> <int layer_index> <string role> <string local_path>
 /start
 ```
 
@@ -78,13 +80,17 @@ The current `api.py` is synchronous on purpose. It is the smallest deployable st
 
 ## Next Architecture Step
 
-Add image generation as another provider:
+Image generation is now available as an optional provider stage:
 
 ```text
-StoryFragment.image_prompt
--> Gemini image or Imagen
--> keyframe assets
--> procedural animation/video compositor
+StoryFragment.image_assets
+-> replicate | imagen | openverse
+-> runs/<run_id>/images/
+-> /image OSC paths
+-> Processing live composition
 ```
 
 For the final performance, keep a procedural fallback live locally while cloud-generated assets arrive with a deliberate delay.
+
+Normal story runs keep `image_provider=none`. Pass `--generate-images --image-provider openverse|replicate|imagen`
+to create image assets. Each run writes `scene_cards.json`, which is the integration file for future live workers.

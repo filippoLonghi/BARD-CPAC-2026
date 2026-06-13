@@ -10,6 +10,23 @@ MOOD_LABELS = ["ENERGETIC", "SOLO", "CALM", "DEEP", "DISSONANT", "ANXIOUS"]
 
 
 @dataclass
+class ImageAsset:
+    role: str
+    label: str
+    prompt: str
+    negative_prompt: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    status: str = "planned"
+    local_path: str | None = None
+    remote_url: str | None = None
+    source_url: str | None = None
+    license: str | None = None
+    creator: str | None = None
+    error: str | None = None
+
+
+@dataclass
 class MusicSegment:
     id: int
     music_prompt: str
@@ -32,6 +49,7 @@ class StoryFragment:
     visual_motif: str | None = None
     palette: str | None = None
     motion: str | None = None
+    image_assets: list[ImageAsset] = field(default_factory=list)
 
     def normalized_mood(self) -> str:
         mood = (self.mood or "").upper().strip()
@@ -57,6 +75,24 @@ class PipelineResult:
             "metadata": self.metadata,
         }
 
+    def scene_cards(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "segment_id": fragment.id,
+                "start_s": fragment.start_s,
+                "end_s": fragment.end_s,
+                "mood": fragment.mood,
+                "story_text": fragment.text,
+                "music_prompt": fragment.music_prompt,
+                "visual_motif": fragment.visual_motif,
+                "palette": fragment.palette,
+                "motion": fragment.motion,
+                "image_prompt": fragment.image_prompt,
+                "image_assets": [asdict(asset) for asset in fragment.image_assets],
+            }
+            for fragment in self.fragments
+        ]
+
     def write(self, output_dir: Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         write_json(output_dir / "result.json", self.to_dict())
@@ -68,6 +104,7 @@ class PipelineResult:
                 "full_story": self.full_story,
             },
         )
+        write_json(output_dir / "scene_cards.json", self.scene_cards())
         (output_dir / "full_story.txt").write_text(self.full_story, encoding="utf-8")
 
 
@@ -97,6 +134,38 @@ def story_fragments_from_json(path: Path) -> list[StoryFragment]:
                 visual_motif=item.get("visual_motif"),
                 palette=item.get("palette"),
                 motion=item.get("motion"),
+                image_assets=image_assets_from_json(item.get("image_assets", [])),
             )
         )
     return fragments
+
+
+def image_assets_from_json(raw_assets: Any) -> list[ImageAsset]:
+    if not isinstance(raw_assets, list):
+        return []
+
+    assets: list[ImageAsset] = []
+    for raw in raw_assets:
+        if not isinstance(raw, dict):
+            continue
+        prompt = str(raw.get("prompt", "")).strip()
+        if not prompt:
+            continue
+        assets.append(
+            ImageAsset(
+                role=str(raw.get("role") or "background").strip().lower(),
+                label=str(raw.get("label") or raw.get("role") or "visual asset").strip(),
+                prompt=prompt,
+                negative_prompt=raw.get("negative_prompt"),
+                provider=raw.get("provider"),
+                model=raw.get("model"),
+                status=str(raw.get("status") or "planned"),
+                local_path=raw.get("local_path"),
+                remote_url=raw.get("remote_url"),
+                source_url=raw.get("source_url"),
+                license=raw.get("license"),
+                creator=raw.get("creator"),
+                error=raw.get("error"),
+            )
+        )
+    return assets

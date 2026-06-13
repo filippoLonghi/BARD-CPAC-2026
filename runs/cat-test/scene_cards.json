@@ -1,0 +1,61 @@
+[
+  {
+    "segment_id": 1,
+    "start_s": 0.0,
+    "end_s": 10.0,
+    "mood": "CALM",
+    "story_text": "A black cat enters a small wood while a low sun opens behind the branches.",
+    "music_prompt": null,
+    "visual_motif": "cat in the wood at sunset",
+    "palette": "deep green, charcoal black, muted amber",
+    "motion": "slow drifting layers with soft blur",
+    "image_prompt": "A rough black cat, a quiet wood, and a low warm sun in an unfinished painterly style.",
+    "image_assets": [
+      {
+        "role": "subject",
+        "label": "black cat",
+        "prompt": "A simple recognizable black cat silhouette, unfinished painterly sketch texture, soft rough edges, plain dark empty background, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "openverse",
+        "model": "openverse-search",
+        "status": "retrieved",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\cat-test\\images\\segment_001_00_subject_black_cat.jpg",
+        "remote_url": "https://live.staticflickr.com/2918/14228415397_6e68977955_b.jpg",
+        "source_url": "https://www.flickr.com/photos/49511010@N08/14228415397",
+        "license": "by",
+        "creator": "Mara ~earth light~ free potential",
+        "error": null
+      },
+      {
+        "role": "background",
+        "label": "small wood",
+        "prompt": "A loose unfinished painted woodland background, simple tree trunks, dark green shadows, soft blur, no animals, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "openverse",
+        "model": "openverse-search",
+        "status": "retrieved",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\cat-test\\images\\segment_001_01_background_small_wood.jpg",
+        "remote_url": "https://live.staticflickr.com/65535/51207960255_e28d824bb8_b.jpg",
+        "source_url": "https://www.flickr.com/photos/15251430@N03/51207960255",
+        "license": "by-nc-nd",
+        "creator": "fs999",
+        "error": null
+      },
+      {
+        "role": "symbol",
+        "label": "low sun",
+        "prompt": "A simple warm glowing sun disk, rough painterly texture, soft amber edges, isolated on dark empty background, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "openverse",
+        "model": "openverse-search",
+        "status": "retrieved",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\cat-test\\images\\segment_001_02_symbol_low_sun.jpg",
+        "remote_url": "https://live.staticflickr.com/7548/15958952911_64dff9ef13_b.jpg",
+        "source_url": "https://www.flickr.com/photos/82176718@N00/15958952911",
+        "license": "by-nc-nd",
+        "creator": "Robin Jaffray",
+        "error": null
+      }
+    ]
+  }
+]

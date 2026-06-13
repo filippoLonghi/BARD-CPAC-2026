@@ -1,0 +1,61 @@
+[
+  {
+    "segment_id": 1,
+    "start_s": 0.0,
+    "end_s": 10.0,
+    "mood": "ENERGETIC",
+    "story_text": "A red fox cuts across a white field while a small fire trembles against the snow.",
+    "music_prompt": null,
+    "visual_motif": "fox in snow near fire",
+    "palette": "snow white, rust red, ember orange",
+    "motion": "quick diagonal flicker",
+    "image_prompt": "A rough red fox, snowy field, and small fire in an unfinished painted style.",
+    "image_assets": [
+      {
+        "role": "subject",
+        "label": "red fox",
+        "prompt": "A simple recognizable red fox silhouette, unfinished painterly sketch texture, soft rough edges, plain dark empty background, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "openverse",
+        "model": "openverse-search",
+        "status": "retrieved",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\fox-test\\images\\segment_001_00_subject_red_fox.jpg",
+        "remote_url": "https://live.staticflickr.com/7238/7377707596_4b1b4b2ed0_b.jpg",
+        "source_url": "https://www.flickr.com/photos/35169553@N06/7377707596",
+        "license": "by",
+        "creator": "Harlz_",
+        "error": null
+      },
+      {
+        "role": "background",
+        "label": "snowy field",
+        "prompt": "A loose unfinished painted snowy field, white ground and faint horizon, soft blur, no animals, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "openverse",
+        "model": "openverse-search",
+        "status": "retrieved",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\fox-test\\images\\segment_001_01_background_snowy_field.jpg",
+        "remote_url": "https://live.staticflickr.com/7619/16621073420_87fd274bc6_b.jpg",
+        "source_url": "https://www.flickr.com/photos/8590349@N05/16621073420",
+        "license": "by",
+        "creator": "Citizen 4474",
+        "error": null
+      },
+      {
+        "role": "symbol",
+        "label": "small fire",
+        "prompt": "A small orange fire flame, rough painterly ember texture, isolated on dark empty background, no text.",
+        "negative_prompt": "text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
+        "provider": "openverse",
+        "model": "openverse-search",
+        "status": "retrieved",
+        "local_path": "C:\\Users\\filip\\Desktop\\Polimi\\Creative Programming and Computing\\BARD-CPAC-2026\\runs\\fox-test\\images\\segment_001_02_symbol_small_fire.jpg",
+        "remote_url": "https://live.staticflickr.com/7293/27377983772_6acc3985b9_b.jpg",
+        "source_url": "https://www.flickr.com/photos/22326055@N06/27377983772",
+        "license": "by-nc-sa",
+        "creator": "theirhistory",
+        "error": null
+      }
+    ]
+  }
+]
