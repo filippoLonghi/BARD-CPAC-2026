@@ -2,119 +2,95 @@ import java.util.HashMap;
 import oscP5.*;
 import netP5.*;
 
-// --- CONFIGURAZIONE DI RETE ---
+//  RETE 
 OscP5 oscP5;
-// IP: Se Python gira sullo stesso computer usa "127.0.0.1". 
-// Se è un altro computer, metti l'IP di quel computer qui solo se devi inviare, 
-// ma per RICEVERE basta che la porta sia giusta.
-String ip = "127.0.0.1"; 
-int port = 5005; // Assicurati che Python mandi a questa porta
+String ip = "127.0.0.1";
+int port = 5005;
 NetAddress pythonVoiceLocation;
 
-// --- STRUTTURA DATI PER I SEGMENTI ---
-ArrayList<Segmento> playlist = new ArrayList<Segmento>();
+//  LISTA ORDINATA SEGMENTI TESTUALI
+ArrayList<Segmento> playlist = new ArrayList<Segmento>(); 
 
-// --- VARIABILI GLOBALI ---
-float slideDuration = 10.0; // Durata di default (sarà sovrascritta da Python)
-boolean isPlaying = false;  // Diventa true quando riceve il segnale /start
+//  TIMING 
+float slideDuration = 10.0;
+boolean isPlaying = false;
 int currentSegmentIndex = -1;
 int lastSegmentTime = 0;
 
-// Variabili Grafiche Originali
-int fontSize = 40;
-float leading = fontSize * 1.4;
-float margin = 200;
+//  LAYOUT 
+float imageAreaRatio = 0.55; // quanto schermo (in altezza) occupa l'area immagine
+float imageMarginX   = 0.2; // margine laterale dell'immagine in %
+float imageMarginTop = 0.13;
+float textAreaPad    = 32; // padding in pixel tra il bordo inferiore dell'immagine e il testo
 
-// Stati Animazione Parole
-int wordSpawnRate = 100;
-float flightSpeed = 6;
-
-final int STATE_WRITING = 0;
-final int STATE_WAITING_ARRIVAL = 1;
-final int STATE_READING = 2; 
-
-int currentState = STATE_WRITING;
-ArrayList<FlyingWord> wordsObjects;
-int currentWordIndex = 0;
-ArrayList<ArrayList<FlyingWord>> pages; 
-int currentPageIndex = 0;
-
-int lastWordSpawnTime = 0;
-int pauseStartTime = 0;
-
-ArrayList<BgParticle> bgParticles;
-HashMap<String, Atmosphere> moods;
-
-PGraphics nebulaCanvas; 
-float noiseScale = 0.003f;
-float timeZ = 0; 
-
-Atmosphere startMood;   
-Atmosphere targetMood;  
-Atmosphere currentVals; 
-float transitionDuration = 2000; 
-float transitionStartTime = -9999; 
-
+//  FONT & TESTO 
+int   fontSize = 20;
+float leading  = fontSize * 1.45; // interlinea
 PFont myFont;
-String fullText = ""; 
+String fullText = "";
 
-// --------------------------------------------------------
+// SISTEMA GESTIONE PAROLE 
+WordsSystem wordsystem = new WordsSystem();
+
+//  PARTICELLE SFONDO
+ArrayList<BgParticle> bgParticles = new ArrayList<BgParticle>();
+
+//  ATMOSFERA 
+MoodManager moodManager;
+Nebula nebula;
+
+//  IMMAGINE
+ImageParticleSystem imgSystem;
+float imgX, imgY, imgW, imgH; // rettangolo dove sta l'immagine
+
+
+// ============================================================
 // SETUP
-// --------------------------------------------------------
+// ============================================================
 void setup() {
-  fullScreen(P2D); 
-  
-  // Inizializza OSC sulla porta di ascolto
+  fullScreen(P2D);
+
   oscP5 = new OscP5(this, port);
   pythonVoiceLocation = new NetAddress("127.0.0.1", 5006);
-  
-  myFont = createFont("Georgia", fontSize); 
+
+  myFont = createFont("Georgia", fontSize);
   textFont(myFont);
   textSize(fontSize);
   textAlign(LEFT, CENTER);
-  
-  wordsObjects = new ArrayList<FlyingWord>();
-  bgParticles = new ArrayList<BgParticle>();
-  
-  nebulaCanvas = createGraphics(width/4, height/4, P2D);
-  
-  setupMoods();
-  
-  // Impostiamo un mood di default per l'attesa
-  setMood("ENERGETIC"); 
-  currentVals = targetMood.copy();
-  startMood = targetMood.copy();
-  
-  // Inizializziamo particelle base
-  for(int i=0; i<currentVals.particleCount; i++) {
+
+  nebula = new Nebula();
+
+  moodManager = new MoodManager("RELEASE");
+  Atmosphere currentVals = moodManager.getCurrentVals();
+
+  for (int i = 0; i < (int)currentVals.particleCount; i++) {
     bgParticles.add(new BgParticle());
   }
+
+  calcImageRect();
+  imgSystem = new ImageParticleSystem();
 }
 
-// --------------------------------------------------------
-// DRAW
-// --------------------------------------------------------
-void draw() {
-  // 1. Calcolo transizioni grafiche
-  float elapsed = millis() - transitionStartTime;
-  float t = constrain(elapsed / transitionDuration, 0, 1);
-  float smoothT = t * t * (3 - 2 * t); 
-  
-  updateCurrentAtmosphere(smoothT);
-  
-  // Gestione numero particelle
-  int targetCount = (int)lerp(startMood.particleCount, targetMood.particleCount, smoothT);
-  if (bgParticles.size() < targetCount) bgParticles.add(new BgParticle());
-  else if (bgParticles.size() > targetCount) bgParticles.remove(0);
 
-  // 2. Disegno Sfondo e Atmosfera
+// ============================================================
+// DRAW
+// ============================================================
+void draw() {
+  //  transizione mood 
+  moodManager.update();
+  Atmosphere currentVals = moodManager.getCurrentVals();
+
+  // particelle bg: numero dinamico
+  int targetCount = (int) currentVals.particleCount;
+  while (bgParticles.size() < targetCount) bgParticles.add(new BgParticle());
+  while (bgParticles.size() > targetCount) bgParticles.remove(0);
+
+  // sfondo + nebula 
   background(currentVals.bgColor);
-  generateNebula(currentVals.nebulaColor, currentVals.nebulaAlphaMax, currentVals.nebulaSpeed);
-  blendMode(ADD);  
-  image(nebulaCanvas, 0, 0, width, height); 
-  blendMode(BLEND);
-  
-  for(BgParticle p : bgParticles){
+  nebula.draw(currentVals.nebulaColor, currentVals.nebulaAlphaMax, currentVals.nebulaSpeed);
+
+  // particelle bg 
+  for (BgParticle p : bgParticles) {
     p.update(currentVals.particleSpeedY, currentVals.chaos);
     p.display(currentVals.particleColor);
   }
@@ -123,58 +99,64 @@ void draw() {
 
   // 3. LOGICA PRINCIPALE
   if (!isPlaying) {
-    // SCHERMATA DI ATTESA DATI
-    fill(255);
+    fill(255, 220);
     textAlign(CENTER, CENTER);
-    textSize(fontSize+20);
-    text("BARD", width/2, height/2-30);
-    textSize(fontSize-10);
-    text("I'll tell you a story...", width/2, height/2+40);
-    textAlign(LEFT, CENTER); 
-  } 
-  else {
-    // A. Controllo Timer Generale
-    if (millis() - lastSegmentTime > slideDuration * 1000) {
-      loadNextSegment();
-    }
-    
-    // B. Aggiorna logica parole
-    updateWordLogic();
-    drawWords();
+    textSize(fontSize + 22);
+    text("BARD", width / 2.0, height / 2.0 - 36);
+    textSize(fontSize - 8);
+    text("I'll tell you a story...", width / 2.0, height / 2.0 + 42);
+    textAlign(LEFT, CENTER);
+    return;
   }
+
+  // timer segmento
+  if (millis() - lastSegmentTime > slideDuration * 1000) {
+    loadNextSegment();
+  }
+
+  // immagine 
+  imgSystem.updateAndDisplay(currentVals.chaos * 2);
+
+  // testo 
+  wordsystem.updateWordLogic();
+  wordsystem.drawWords(currentVals);
 }
 
-// --------------------------------------------------------
-// GESTIONE CAMBIO SEGMENTO
-// --------------------------------------------------------
 
+// ============================================================
+// LAYOUT
+// ============================================================
+void calcImageRect() {
+  imgX = width  * imageMarginX;
+  imgY = height * imageMarginTop;
+  imgW = width  * (1.0 - 2 * imageMarginX);
+  imgH = height * imageAreaRatio;
+}
+
+
+// ============================================================
+// CAMBIO SEGMENTO
+// ============================================================
 void loadNextSegment() {
   currentSegmentIndex++;
-  
-  if (currentSegmentIndex >= playlist.size()) {
-    currentSegmentIndex = 0;
-  }
-  
+  if (currentSegmentIndex >= playlist.size()) currentSegmentIndex = 0;
+
   Segmento seg = playlist.get(currentSegmentIndex);
-  
-  // DEBUG: Stampa cosa sta caricando
-  println(">>> CARICAMENTO SEGMENTO " + currentSegmentIndex);
+  println(">>> SEGMENTO " + currentSegmentIndex + " | mood: " + seg.categoria);
   println(">>> TESTO: " + seg.testo);
-  
-  setMood(seg.categoria);
-  
+
+  imgSystem.loadAndConvert(seg.imagePath, imgX, imgY, imgW, imgH);
+
+  moodManager.setMood(seg.categoria);
+
   fullText = seg.testo;
-  calculatePages(); 
-  loadPage(0);    
-  
+  wordsystem.calculatePages();
+  wordsystem.loadPage(0);
+
   OscMessage msgVoce = new OscMessage("/speak");
-  msgVoce.add(seg.testo); // Aggiunge il testo al messaggio
-  oscP5.send(msgVoce, pythonVoiceLocation); // Spedisce a Python (porta 12001)
-  println(">>> COMANDO VOCALE INVIATO PER: " + seg.testo);
-  
-  // DEBUG: Controlliamo se ha creato le parole volanti
-  println(">>> PAROLE CREATE: " + wordsObjects.size());
-  
+  msgVoce.add(seg.testo);
+  oscP5.send(msgVoce, pythonVoiceLocation);
+
   lastSegmentTime = millis();
 }
 
@@ -300,13 +282,15 @@ void drawCurrentSegmentImages() {
 // OSC EVENT
 // --------------------------------------------------------
 void oscEvent(OscMessage msg) {
-  println("ricevuto qualcosa");
-  if (msg.checkAddrPattern("/config/duration")) {
-    if(msg.checkTypetag("f")) slideDuration = msg.get(0).floatValue();
-    else if(msg.checkTypetag("i")) slideDuration = msg.get(0).intValue();
-    println(">>> Durata slide: " + slideDuration);
-    return;
-  }
+  //oschandler.oscEvent(msg);
+  println("OSC: " + msg.addrPattern());
+
+    if (msg.checkAddrPattern("/config/duration")) {
+      if (msg.checkTypetag("f"))      slideDuration = msg.get(0).floatValue();
+      else if (msg.checkTypetag("i")) slideDuration = msg.get(0).intValue();
+      println(">>> Durata slide: " + slideDuration);
+      return;
+    }
   
   if (msg.checkAddrPattern("/segment")) {
     /*int cat = 0;
@@ -346,14 +330,14 @@ void oscEvent(OscMessage msg) {
     return;
   }
   
-  if (msg.checkAddrPattern("/start")) {
-    if (playlist.size() > 0) {
-      println(">>> START!");
-      isPlaying = true;
-      lastSegmentTime = millis() - (int)(slideDuration*1000); 
+    if (msg.checkAddrPattern("/start")) {
+      if (playlist.size() > 0) {
+        println(">>> START!");
+        isPlaying       = true;
+        lastSegmentTime = millis() - (int)(slideDuration * 1000);
+      }
+      return;
     }
-    return;
-  }
 }
 
 Segmento findSegment(int segmentId) {
