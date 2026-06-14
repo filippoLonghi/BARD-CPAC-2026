@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 
 from ..config import BardSettings
@@ -38,13 +39,23 @@ def generate_images_for_fragments(
 
     generated = 0
     failed = 0
+    jobs: list[tuple[str, ImageAsset, Path]] = []
     for fragment in fragments:
         for layer_index, asset in enumerate(fragment.image_assets[:max_assets]):
             asset.provider = provider
             asset.model = model_for_provider(provider, settings)
             output_base_path = output_dir / _asset_filename(fragment.id, layer_index, asset)
+            jobs.append((provider, asset, output_base_path))
+
+    with ThreadPoolExecutor(max_workers=min(3, max(1, len(jobs)))) as executor:
+        futures = {
+            executor.submit(_generate_one, job_provider, asset, output_path, settings): asset
+            for job_provider, asset, output_path in jobs
+        }
+        for future in as_completed(futures):
+            asset = futures[future]
             try:
-                _generate_one(provider, asset, output_base_path, settings)
+                future.result()
                 generated += 1
             except Exception as exc:
                 asset.status = "failed"

@@ -25,8 +25,21 @@ If Imagen fails with a region/model error, try a region where your GCP project h
 For Imagen, BARD sends each asset's full `prompt` field. Imagen 4 does not use the `negative_prompt` field in this implementation.
 
 `openverse` is the free smoke-test provider. It does not generate a new image; it searches Openverse, downloads a PNG/JPEG result, and stores attribution metadata in `scene_cards.json`.
-For Openverse, the search query is the asset `label` only, for example `black cat` or `warm lantern`.
-The longer `prompt` is kept for generation models such as Replicate and Imagen.
+For Openverse, BARD derives a one- or two-word search query locally from `search_query` or the asset
+label, for example `black cat` or `warm lantern`. It does not spend an LLM call writing Openverse
+queries. The longer `prompt` is reserved for generation models such as Replicate and Imagen.
+
+Imagen prompts follow Google's subject + context + style guidance. Background assets request a
+widescreen environment. Subject and symbol assets request a clean silhouette isolated on pure black,
+which lets Processing discard black pixels and compose them over the background. Character visual
+identities are fixed in the story bible and appended programmatically to every later subject prompt.
+This gives prompt-level continuity. Exact recurring-character identity would require Imagen subject
+customization with reference images, which is a separate future integration.
+
+References:
+
+- [Google Imagen prompt guide](https://cloud.google.com/vertex-ai/generative-ai/docs/image/img-gen-prompt-guide)
+- [Openverse API reference](https://docs.openverse.org/api/reference.html)
 
 `replicate` runs FLUX.1 Schnell through Replicate. It is the cheap generated-image path. Set one of:
 
@@ -134,6 +147,7 @@ Image-only output is intentionally small:
 
 ```text
 runs/<image_test>/
+  story.json              # replayable by the send-osc command
   scene_cards.json        # input card, updated with statuses after generation
   image_manifest.json     # image-only output metadata and errors
   images/                 # files that Processing can use

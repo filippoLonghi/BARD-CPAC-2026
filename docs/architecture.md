@@ -17,9 +17,14 @@ The new code lives in `src/bard_core`.
 - `audio/clap_provider.py`: reuses the wrapped hackathon CLAP implementation.
 - `audio/gemini_provider.py`: Vertex/Gemini audio analysis for a cloud-light path.
 - `story/local_mistral.py`: reuses the wrapped hackathon local Mistral story generator.
-- `story/gemini_story.py`: Vertex/Gemini story generation with future visual fields.
+- `audio/chunks.py`: saves independently analyzable WAV windows for sequential execution.
+- `story/music_translation.py`: musical observations to music-free dramatic directions.
+- `story/gemini_story.py`: persistent fairy-tale bible, continuity state, and three visual assets per beat.
+- `pipeline_sequential.py`: uploaded-file stream simulation and planned-duration live foundation.
 - `images/`: optional image-keyframe providers for Replicate FLUX, Vertex Imagen, and Openverse retrieval.
 - `transport/osc_sender.py`: sends `/config/duration`, `/segment`, optional `/image`, and `/start` to Processing.
+- Before cloud work, Python sends `/prepare`; Processing replies `/ready` on port 5007.
+- Before playback, Python sends `/prime`; Processing loads scene 1 and replies `/primed`.
 - `api.py`: small FastAPI service for Cloud Run experiments.
 
 ## Local Modes
@@ -47,10 +52,14 @@ Use the sketch in `apps/processing/bard_story_visuals` for now. It listens on po
 Python sends:
 
 ```text
+/reset
 /config/duration <float seconds>
-/segment <string mood> <string text>
+/config/streaming <int 0|1>
+/segment <int segment_id> <string mood> <string full_text> <float start_s> <float end_s>
+/keywords <int segment_id> <string...>
 /image <int segment_id> <int layer_index> <string role> <string local_path>
 /start
+/finish
 ```
 
 Allowed moods:
@@ -58,6 +67,8 @@ Allowed moods:
 ```text
 ENERGETIC, SOLO, CALM, DEEP, DISSONANT, ANXIOUS
 ```
+
+See [pipeline_data.md](pipeline_data.md) for concrete JSON examples and field ownership.
 
 ## Target GCP Shape
 

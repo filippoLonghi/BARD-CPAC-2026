@@ -8,7 +8,8 @@ class FlyingWord {
   float currentGlow = 0;
   float targetGlow  = 0;
   float colorVariation; //varia un pochino il colore di ciascuna parola randomly
-  float flightSpeed  = 8; 
+  float flightSpeed  = 8;
+  float opacity = 255;
 
 
   FlyingWord(String text, float targetX, float targetY, int sentenceId) {
@@ -59,13 +60,24 @@ class FlyingWord {
     angle = lerp(angle, 0, 0.08f);
   }
 
+  void lockToTarget() {
+    pos = target.copy();
+    vel.mult(0);
+    acc.mult(0);
+    angle = 0;
+    locked = true;
+  }
+
   void displayBase(color cBase, color cAccent) {
     textSize(fontSize);
     pushMatrix();
     translate(pos.x, pos.y);
     rotate(angle); ///???
     color finalColor = lerpColor(cBase, cAccent, colorVariation);
-    fill(finalColor);
+    fill(red(finalColor), green(finalColor), blue(finalColor), opacity);
+    fill(0, min(150, opacity * 0.55f));
+    text(text, 2, 2);
+    fill(red(finalColor), green(finalColor), blue(finalColor), opacity);
     text(text, 0, 0);
     popMatrix();
   }

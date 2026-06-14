@@ -5,7 +5,9 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
+import socket
 import sys
+import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -17,11 +19,12 @@ from bard_core.cli import (
     image_manifest_from_fragments,
     normalize_argv,
     scene_cards_from_fragments,
+    story_json_from_fragments,
 )
 from bard_core.images.generator import generate_images_for_fragments
-from bard_core.images.openverse_provider import _query_for_asset
+from bard_core.images.openverse_provider import _query_candidates, _query_for_asset
 from bard_core.images.planner import ensure_fragment_image_assets
-from bard_core.transport.osc_sender import send_fragments_to_processing
+from bard_core.transport.osc_sender import ProcessingOscStream, prepare_audio_playback, send_fragments_to_processing
 
 
 def test_settings(tmp_path: Path) -> BardSettings:
@@ -47,14 +50,23 @@ def test_settings(tmp_path: Path) -> BardSettings:
         imagen_location="europe-west1",
         osc_host="127.0.0.1",
         osc_port=5005,
+        osc_ready_port=5007,
+        processing_ready_timeout_s=8,
         default_chunk_s=30,
         default_wpm=180,
+        story_language="English",
+        story_level="children",
+        text_coverage=0.72,
+        target_words_per_fragment=32,
+        music_window_s=15,
+        story_scene_s=60,
+        processing_startup_delay_s=1.5,
         use_4bit=False,
     )
 
 
 class ImageAssetTests(TestCase):
-    def test_asset_planning_preserves_single_image_prompt(self) -> None:
+    def test_asset_planning_expands_single_prompt_to_three_visual_roles(self) -> None:
         fragment = StoryFragment(
             id=1,
             mood="CALM",
@@ -65,10 +77,10 @@ class ImageAssetTests(TestCase):
 
         assets = ensure_fragment_image_assets(fragment, max_assets=3)
 
-        self.assertEqual(len(assets), 1)
-        self.assertEqual(assets[0].role, "background")
-        self.assertEqual(assets[0].label, "cat")
-        self.assertEqual(assets[0].prompt, fragment.image_prompt)
+        self.assertEqual(len(assets), 3)
+        self.assertEqual([asset.role for asset in assets], ["background", "subject", "symbol"])
+        self.assertIn("cat", assets[0].label)
+        self.assertIn(fragment.image_prompt, assets[0].prompt)
         self.assertIn("text", assets[0].negative_prompt or "")
 
     def test_fake_story_card_has_layered_assets(self) -> None:
@@ -112,9 +124,11 @@ class ImageAssetTests(TestCase):
         fragments[0].image_assets[0].error = "download failed"
 
         scene_cards = scene_cards_from_fragments(fragments)
+        story_json = story_json_from_fragments(fragments)
         manifest = image_manifest_from_fragments(fragments, {"image_provider": "openverse"})
 
         self.assertEqual(scene_cards[0]["story_text"], fragments[0].text)
+        self.assertEqual(story_json["fragments"][0]["image_assets"][0]["error"], "download failed")
         self.assertEqual(scene_cards[0]["image_assets"][0]["label"], "black cat")
         self.assertEqual(manifest["images"][0]["status"], "failed")
         self.assertEqual(manifest["images"][0]["error"], "download failed")
@@ -150,7 +164,7 @@ class ImageAssetTests(TestCase):
                 )
 
         self.assertEqual(metadata["image_provider"], "replicate")
-        self.assertEqual(metadata["generated_image_assets"], 1)
+        self.assertEqual(metadata["generated_image_assets"], 3)
         self.assertEqual(fragment.image_assets[0].status, "generated")
         self.assertEqual(fragment.image_assets[0].model, "black-forest-labs/flux-schnell")
 
@@ -164,6 +178,92 @@ class ImageAssetTests(TestCase):
         )
 
         self.assertEqual(query, "black cat")
+
+    def test_openverse_query_candidates_simplify_abstract_labels(self) -> None:
+        candidates = _query_candidates(
+            ImageAsset(
+                role="background",
+                label="Solitary light form, ephemeral tendrils, deep void",
+                prompt="A solitary shimmering light in a dark empty space.",
+            )
+        )
+
+        self.assertEqual(candidates[0], "solitary light")
+        self.assertIn("background", candidates)
+        self.assertLessEqual(len(candidates[0].split()), 2)
+
+    def test_stream_sends_fragment_before_explicit_play(self) -> None:
+        sent: list[tuple[str, object]] = []
+
+        class FakeClient:
+            def __init__(self, host: str, port: int) -> None:
+                self.host = host
+                self.port = port
+
+            def send_message(self, address: str, payload: object) -> None:
+                sent.append((address, payload))
+
+        fake_pythonosc = SimpleNamespace(udp_client=SimpleNamespace(SimpleUDPClient=FakeClient))
+        with patch.dict(sys.modules, {"pythonosc": fake_pythonosc}):
+            stream = ProcessingOscStream(
+                "127.0.0.1",
+                5005,
+                slide_duration_s=10,
+                include_images=False,
+            )
+            stream.start()
+            stream.send(StoryFragment(id=1, mood="CALM", text="C'era una città luminosa."))
+
+            self.assertNotIn("/start", [address for address, _ in sent])
+            stream.play()
+            stream.play()
+
+        self.assertEqual([address for address, _ in sent].count("/start"), 1)
+        self.assertLess(
+            [address for address, _ in sent].index("/segment"),
+            [address for address, _ in sent].index("/start"),
+        )
+
+    def test_processing_readiness_handshake(self) -> None:
+        from pythonosc import dispatcher, osc_server, udp_client
+
+        def free_udp_port() -> int:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.bind(("127.0.0.1", 0))
+                return int(sock.getsockname()[1])
+
+        processing_port = free_udp_port()
+        ready_port = free_udp_port()
+        receiver = dispatcher.Dispatcher()
+
+        def answer(address: str, response_port: int) -> None:
+            response_address = "/ready" if address == "/prepare" else "/primed"
+            client = udp_client.SimpleUDPClient("127.0.0.1", int(response_port))
+            try:
+                client.send_message(response_address, [1])
+            finally:
+                client._sock.close()
+
+        receiver.map("/prepare", answer)
+        receiver.map("/prime", answer)
+        server = osc_server.ThreadingOSCUDPServer(("127.0.0.1", processing_port), receiver)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            stream = ProcessingOscStream(
+                "127.0.0.1",
+                processing_port,
+                slide_duration_s=60,
+                include_images=False,
+                ready_port=ready_port,
+            )
+            stream.await_ready(2)
+            stream.prime(2)
+            stream.client._sock.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
 
     def test_failed_provider_marks_asset_without_crashing(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -184,7 +284,7 @@ class ImageAssetTests(TestCase):
                     print_estimate=False,
                 )
 
-        self.assertEqual(metadata["failed_image_assets"], 1)
+        self.assertEqual(metadata["failed_image_assets"], 3)
         self.assertEqual(fragment.image_assets[0].status, "failed")
         self.assertEqual(fragment.image_assets[0].error, "no token")
 
@@ -251,7 +351,11 @@ class ImageAssetTests(TestCase):
 
             fake_pythonosc = SimpleNamespace(udp_client=SimpleNamespace(SimpleUDPClient=FakeClient))
             with patch.dict(sys.modules, {"pythonosc": fake_pythonosc}):
-                with patch("bard_core.transport.osc_sender.time.sleep"):
+                with (
+                    patch("bard_core.transport.osc_sender.time.sleep"),
+                    patch.object(ProcessingOscStream, "await_ready"),
+                    patch.object(ProcessingOscStream, "prime"),
+                ):
                     send_fragments_to_processing(
                         fragments=[fragment],
                         host="127.0.0.1",
@@ -262,7 +366,36 @@ class ImageAssetTests(TestCase):
                     )
 
         image_messages = [payload for address, payload in sent if address == "/image"]
+        segment_messages = [payload for address, payload in sent if address == "/segment"]
+        self.assertEqual(sent[0][0], "/reset")
+        self.assertEqual(segment_messages, [[1, "CALM", "A cat waits.", 0.0, 10.0]])
+        self.assertIn(("/config/streaming", 1), sent)
         self.assertEqual(len(image_messages), 1)
         self.assertEqual(image_messages[0][0], 1)
         self.assertEqual(image_messages[0][1], 0)
         self.assertEqual(image_messages[0][2], "subject")
+
+    def test_audio_playback_is_loaded_started_and_waited(self) -> None:
+        with TemporaryDirectory() as tmp:
+            audio_path = Path(tmp) / "audio.ogg"
+            audio_path.write_bytes(b"fake")
+            events: list[str] = []
+            busy_values = iter([True, False])
+
+            fake_music = SimpleNamespace(
+                load=lambda path: events.append(f"load:{Path(path).name}"),
+                play=lambda: events.append("play"),
+                get_busy=lambda: next(busy_values),
+            )
+            fake_pygame = SimpleNamespace(
+                mixer=SimpleNamespace(init=lambda: events.append("init"), music=fake_music),
+                time=SimpleNamespace(Clock=lambda: SimpleNamespace(tick=lambda fps: events.append(f"tick:{fps}"))),
+            )
+
+            with patch.dict(sys.modules, {"pygame": fake_pygame}):
+                playback = prepare_audio_playback(audio_path)
+                playback.play()
+                playback.wait()
+
+        self.assertEqual(events[:3], ["init", "load:audio.ogg", "play"])
+        self.assertIn("tick:30", events)

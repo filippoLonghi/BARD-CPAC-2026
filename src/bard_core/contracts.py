@@ -14,6 +14,7 @@ class ImageAsset:
     role: str
     label: str
     prompt: str
+    search_query: str | None = None
     negative_prompt: str | None = None
     provider: str | None = None
     model: str | None = None
@@ -35,6 +36,26 @@ class MusicSegment:
     mood_hint: str | None = None
     confidence: float | None = None
     source: str = "unknown"
+    valence: float | None = None
+    arousal: float | None = None
+    tension: float | None = None
+    tempo_bpm: float | None = None
+    tempo_description: str | None = None
+    meter: str | None = None
+    mode: str | None = None
+    harmony: str | None = None
+    dynamics: str | None = None
+    texture: str | None = None
+    rhythmic_character: str | None = None
+    instruments: list[str] = field(default_factory=list)
+    genre_candidates: list[str] = field(default_factory=list)
+    notable_events: list[str] = field(default_factory=list)
+    story_energy: str | None = None
+    story_tension: str | None = None
+    story_direction: str | None = None
+    suggested_event: str | None = None
+    visual_motion: str | None = None
+    color_direction: str | None = None
 
 
 @dataclass
@@ -49,6 +70,10 @@ class StoryFragment:
     visual_motif: str | None = None
     palette: str | None = None
     motion: str | None = None
+    narrative_phase: str | None = None
+    story_event: str | None = None
+    display_text: str | None = None
+    keywords: list[str] = field(default_factory=list)
     image_assets: list[ImageAsset] = field(default_factory=list)
 
     def normalized_mood(self) -> str:
@@ -63,6 +88,8 @@ class PipelineResult:
     music_segments: list[MusicSegment]
     fragments: list[StoryFragment]
     full_story: str
+    story_bible: dict[str, Any] = field(default_factory=dict)
+    story_state: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,6 +99,8 @@ class PipelineResult:
             "music_segments": [asdict(seg) for seg in self.music_segments],
             "fragments": [asdict(fragment) for fragment in self.fragments],
             "full_story": self.full_story,
+            "story_bible": self.story_bible,
+            "story_state": self.story_state,
             "metadata": self.metadata,
         }
 
@@ -87,6 +116,10 @@ class PipelineResult:
                 "visual_motif": fragment.visual_motif,
                 "palette": fragment.palette,
                 "motion": fragment.motion,
+                "narrative_phase": fragment.narrative_phase,
+                "story_event": fragment.story_event,
+                "display_text": fragment.display_text,
+                "keywords": fragment.keywords,
                 "image_prompt": fragment.image_prompt,
                 "image_assets": [asdict(asset) for asset in fragment.image_assets],
             }
@@ -102,6 +135,8 @@ class PipelineResult:
             {
                 "fragments": [asdict(fragment) for fragment in self.fragments],
                 "full_story": self.full_story,
+                "story_bible": self.story_bible,
+                "story_state": self.story_state,
             },
         )
         write_json(output_dir / "scene_cards.json", self.scene_cards())
@@ -134,6 +169,10 @@ def story_fragments_from_json(path: Path) -> list[StoryFragment]:
                 visual_motif=item.get("visual_motif"),
                 palette=item.get("palette"),
                 motion=item.get("motion"),
+                narrative_phase=item.get("narrative_phase"),
+                story_event=item.get("story_event"),
+                display_text=item.get("display_text"),
+                keywords=[str(value) for value in (item.get("keywords") or [])],
                 image_assets=image_assets_from_json(item.get("image_assets", [])),
             )
         )
@@ -156,6 +195,7 @@ def image_assets_from_json(raw_assets: Any) -> list[ImageAsset]:
                 role=str(raw.get("role") or "background").strip().lower(),
                 label=str(raw.get("label") or raw.get("role") or "visual asset").strip(),
                 prompt=prompt,
+                search_query=raw.get("search_query"),
                 negative_prompt=raw.get("negative_prompt"),
                 provider=raw.get("provider"),
                 model=raw.get("model"),

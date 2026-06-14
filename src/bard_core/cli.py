@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict, replace
 from pathlib import Path
 import sys
 
@@ -8,6 +9,7 @@ from .config import BardSettings, load_env_file
 from .contracts import ImageAsset, PipelineResult, StoryFragment, story_fragments_from_json, write_json
 from .images import generate_images_for_fragments
 from .pipeline import make_run_id, run_pipeline
+from .pipeline_sequential import run_sequential_pipeline
 from .transport import send_fragments_to_processing
 
 
@@ -25,7 +27,52 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
     run.add_argument("--max-image-assets", type=int, default=None, help="Maximum image assets per fragment.")
     run.add_argument("--send-osc", action="store_true", help="Send generated story fragments to Processing.")
+    _add_story_style_arguments(run)
     run.add_argument("--out-dir", default=None, help="Optional output directory for this run.")
+
+    sequential = sub.add_parser(
+        "run-fragments",
+        help="Process an uploaded audio file one saved fragment at a time.",
+    )
+    sequential.add_argument("--audio", required=True, help="Audio file path.")
+    size = sequential.add_mutually_exclusive_group()
+    size.add_argument(
+        "--chunk-seconds",
+        type=float,
+        default=None,
+        help="Debug override for story-scene length; otherwise BARD uses the configured scene duration.",
+    )
+    size.add_argument("--fragments", type=int, default=None, help="Split the complete file into exactly N fragments.")
+    sequential.add_argument(
+        "--planned-duration",
+        type=float,
+        default=None,
+        help="Optional planned live duration in seconds; file end still forces the ending.",
+    )
+    sequential.add_argument(
+        "--words-per-fragment",
+        type=int,
+        default=None,
+        help="Override automatic duration/readability word budgeting.",
+    )
+    sequential.add_argument(
+        "--music-window-seconds",
+        type=float,
+        default=None,
+        help="Length of fine musical observations inside each longer story scene.",
+    )
+    sequential.add_argument(
+        "--startup-delay",
+        type=float,
+        default=None,
+        help="Seconds to let Processing ingest the first complete scene before audio starts.",
+    )
+    _add_story_style_arguments(sequential)
+    sequential.add_argument("--generate-images", action="store_true")
+    sequential.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
+    sequential.add_argument("--max-image-assets", type=int, default=3)
+    sequential.add_argument("--send-osc", action="store_true")
+    sequential.add_argument("--out-dir", default=None)
 
     images = sub.add_parser("generate-images", help="Generate/retrieve image assets without running audio/story.")
     images.add_argument("--story-json", default=None, help="Existing story.json to use as input.")
@@ -46,6 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     osc.add_argument("--port", type=int, default=None)
     osc.add_argument("--delay", type=float, default=2.0)
     osc.add_argument("--include-images", action="store_true", help="Also send /image messages for local image assets.")
+    osc.add_argument("--audio", default=None, help="Optional source audio to play in sync with /start.")
     return parser
 
 
@@ -55,6 +103,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     load_env_file(Path(args.env_file).expanduser() if args.env_file else None)
     settings = BardSettings.from_env()
+    settings = _settings_with_story_overrides(settings, args)
 
     if args.command == "run-local":
         result = run_pipeline(
@@ -72,6 +121,27 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Run complete: {result.run_id}")
         print(f"Fragments: {len(result.fragments)}")
         print(f"Output root: {settings.output_dir}")
+        return
+
+    if args.command == "run-fragments":
+        result = run_sequential_pipeline(
+            audio_path=Path(args.audio),
+            settings=settings,
+            chunk_s=args.chunk_seconds,
+            fragment_count=args.fragments,
+            planned_duration_s=args.planned_duration,
+            words_per_fragment=args.words_per_fragment,
+            music_window_s=args.music_window_seconds,
+            startup_delay_s=args.startup_delay,
+            generate_images=args.generate_images,
+            image_provider=args.image_provider,
+            max_image_assets=args.max_image_assets,
+            send_osc=args.send_osc,
+            output_dir=Path(args.out_dir).expanduser() if args.out_dir else None,
+        )
+        print(f"Sequential run complete: {result.run_id}")
+        print(f"Fragments: {len(result.fragments)}")
+        print(f"Output directory: {args.out_dir or settings.output_dir}")
         return
 
     if args.command == "generate-images":
@@ -107,6 +177,7 @@ def main(argv: list[str] | None = None) -> None:
             max_assets=args.max_image_assets or settings.max_image_assets,
         )
         write_json(scene_cards_path, scene_cards_from_fragments(fragments))
+        write_json(destination / "story.json", story_json_from_fragments(fragments))
         write_json(destination / "image_manifest.json", image_manifest_from_fragments(fragments, metadata))
         if args.send_osc:
             send_fragments_to_processing(
@@ -132,6 +203,9 @@ def main(argv: list[str] | None = None) -> None:
             slide_duration_s=args.duration,
             start_delay_s=args.delay,
             include_images=args.include_images,
+            audio_path=Path(args.audio).expanduser() if args.audio else None,
+            ready_port=settings.osc_ready_port,
+            ready_timeout_s=settings.processing_ready_timeout_s,
         )
         print(f"Sent {len(fragments)} fragments to {args.host or settings.osc_host}:{args.port or settings.osc_port}")
         return
@@ -140,7 +214,7 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def normalize_argv(argv: list[str]) -> list[str]:
-    commands = {"run-local", "generate-images", "send-osc"}
+    commands = {"run-local", "run-fragments", "generate-images", "send-osc"}
     normalized: list[str] = []
     idx = 0
     while idx < len(argv):
@@ -154,6 +228,44 @@ def normalize_argv(argv: list[str]) -> list[str]:
         normalized.append(item)
         idx += 1
     return normalized
+
+
+def _add_story_style_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--story-language", default=None, help="Audience-facing story language, for example Italian.")
+    parser.add_argument(
+        "--story-level",
+        choices=["early-reader", "children", "general", "literary"],
+        default=None,
+        help="Vocabulary and sentence-complexity level.",
+    )
+    parser.add_argument("--reading-wpm", type=float, default=None, help="Target audience reading speed.")
+    parser.add_argument(
+        "--target-words-per-fragment",
+        type=int,
+        default=None,
+        help="Preferred minimum words used when calculating an automatic story-scene duration.",
+    )
+    parser.add_argument(
+        "--text-coverage",
+        type=float,
+        default=None,
+        help="Fraction of each story scene budgeted for audience reading, from 0.25 to 0.95.",
+    )
+
+
+def _settings_with_story_overrides(settings: BardSettings, args: argparse.Namespace) -> BardSettings:
+    values: dict[str, object] = {}
+    for arg_name, setting_name in (
+        ("story_language", "story_language"),
+        ("story_level", "story_level"),
+        ("reading_wpm", "default_wpm"),
+        ("text_coverage", "text_coverage"),
+        ("target_words_per_fragment", "target_words_per_fragment"),
+    ):
+        value = getattr(args, arg_name, None)
+        if value is not None:
+            values[setting_name] = value
+    return replace(settings, **values) if values else settings
 
 
 def fake_story_card_options() -> dict[str, str]:
@@ -295,4 +407,11 @@ def image_manifest_from_fragments(fragments: list[StoryFragment], metadata: dict
             for fragment in fragments
             for layer_index, asset in enumerate(fragment.image_assets)
         ],
+    }
+
+
+def story_json_from_fragments(fragments: list[StoryFragment]) -> dict[str, object]:
+    return {
+        "fragments": [asdict(fragment) for fragment in fragments],
+        "full_story": "\n\n".join(fragment.text for fragment in fragments),
     }

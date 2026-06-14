@@ -9,6 +9,9 @@ description = "BARD after-score pipeline: audio performance analysis to story an
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "mutagen>=1.47.0",
+  "soundfile>=0.13.1",
+  "pygame>=2.6.1",
   "python-dotenv>=1.0.1",
   "python-osc>=1.9.3",
 ]

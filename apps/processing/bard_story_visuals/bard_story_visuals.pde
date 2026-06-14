@@ -1,103 +1,91 @@
 import java.util.HashMap;
+import java.text.Normalizer;
 import oscP5.*;
 import netP5.*;
 
-//  RETE 
 OscP5 oscP5;
-String ip = "127.0.0.1";
 int port = 5005;
 NetAddress pythonVoiceLocation;
+NetAddress pythonReadyLocation;
 
-//  LISTA ORDINATA SEGMENTI TESTUALI
-ArrayList<Segmento> playlist = new ArrayList<Segmento>(); 
+ArrayList<Segmento> playlist = new ArrayList<Segmento>();
 
-//  TIMING 
 float slideDuration = 10.0;
 boolean isPlaying = false;
+boolean streamingMode = false;
+boolean streamFinished = false;
 int currentSegmentIndex = -1;
 int lastSegmentTime = 0;
+int performanceStartTime = 0;
 
-//  LAYOUT 
-float imageAreaRatio = 0.55; // quanto schermo (in altezza) occupa l'area immagine
-float imageMarginX   = 0.2; // margine laterale dell'immagine in %
+float imageAreaRatio = 0.55;
+float imageMarginX = 0.2;
 float imageMarginTop = 0.13;
-float textAreaPad    = 32; // padding in pixel tra il bordo inferiore dell'immagine e il testo
+float textAreaPad = 32;
 
-//  FONT & TESTO 
-int   fontSize = 20;
-float leading  = fontSize * 1.45; // interlinea
+int fontSize = 20;
+float leading = fontSize * 1.45;
 PFont myFont;
 String fullText = "";
 
-// SISTEMA GESTIONE PAROLE 
 WordsSystem wordsystem = new WordsSystem();
-
-//  PARTICELLE SFONDO
 ArrayList<BgParticle> bgParticles = new ArrayList<BgParticle>();
-
-//  ATMOSFERA 
 MoodManager moodManager;
 Nebula nebula;
+ArrayList<ImageParticleSystem> imgSystems = new ArrayList<ImageParticleSystem>();
+int pendingImageReloadId = -1;
+int primedSegmentId = -1;
 
-//  IMMAGINE
-ImageParticleSystem imgSystem;
-float imgX, imgY, imgW, imgH; // rettangolo dove sta l'immagine
+float imgX, imgY, imgW, imgH;
 
-
-// ============================================================
-// SETUP
-// ============================================================
 void setup() {
   fullScreen(P2D);
 
   oscP5 = new OscP5(this, port);
   pythonVoiceLocation = new NetAddress("127.0.0.1", 5006);
+  pythonReadyLocation = new NetAddress("127.0.0.1", 5007);
 
-  myFont = createFont("Georgia", fontSize);
+  myFont = createFont("Arial", fontSize, true, buildDisplayCharset());
   textFont(myFont);
   textSize(fontSize);
   textAlign(LEFT, CENTER);
 
   nebula = new Nebula();
+  moodManager = new MoodManager("CALM");
 
-  moodManager = new MoodManager("RELEASE");
   Atmosphere currentVals = moodManager.getCurrentVals();
-
   for (int i = 0; i < (int)currentVals.particleCount; i++) {
     bgParticles.add(new BgParticle());
   }
 
   calcImageRect();
-  imgSystem = new ImageParticleSystem();
 }
 
+char[] buildDisplayCharset() {
+  // Basic Latin, Latin-1, and Latin Extended cover the configured European story languages.
+  char[] charset = new char[992];
+  for (int index = 0; index < charset.length; index++) {
+    charset[index] = (char)(32 + index);
+  }
+  return charset;
+}
 
-// ============================================================
-// DRAW
-// ============================================================
 void draw() {
-  //  transizione mood 
   moodManager.update();
   Atmosphere currentVals = moodManager.getCurrentVals();
 
-  // particelle bg: numero dinamico
-  int targetCount = (int) currentVals.particleCount;
+  int targetCount = (int)currentVals.particleCount;
   while (bgParticles.size() < targetCount) bgParticles.add(new BgParticle());
   while (bgParticles.size() > targetCount) bgParticles.remove(0);
 
-  // sfondo + nebula 
   background(currentVals.bgColor);
   nebula.draw(currentVals.nebulaColor, currentVals.nebulaAlphaMax, currentVals.nebulaSpeed);
 
-  // particelle bg 
-  for (BgParticle p : bgParticles) {
-    p.update(currentVals.particleSpeedY, currentVals.chaos);
-    p.display(currentVals.particleColor);
+  for (BgParticle particle : bgParticles) {
+    particle.update(currentVals.particleSpeedY, currentVals.chaos);
+    particle.display(currentVals.particleColor);
   }
-  
-  drawCurrentSegmentImages();
 
-  // 3. LOGICA PRINCIPALE
   if (!isPlaying) {
     fill(255, 220);
     textAlign(CENTER, CENTER);
@@ -109,310 +97,274 @@ void draw() {
     return;
   }
 
-  // timer segmento
-  if (millis() - lastSegmentTime > slideDuration * 1000) {
-    loadNextSegment();
-  }
+  advanceTimeline();
+  applyPendingImageReload();
 
-  // immagine 
-  imgSystem.updateAndDisplay(currentVals.chaos * 2);
-
-  // testo 
+  updateCurrentSegmentImage(currentVals);
   wordsystem.updateWordLogic();
   wordsystem.drawWords(currentVals);
 }
 
-
-// ============================================================
-// LAYOUT
-// ============================================================
 void calcImageRect() {
-  imgX = width  * imageMarginX;
+  imgX = width * imageMarginX;
   imgY = height * imageMarginTop;
-  imgW = width  * (1.0 - 2 * imageMarginX);
+  imgW = width * (1.0 - 2 * imageMarginX);
   imgH = height * imageAreaRatio;
 }
 
-
-// ============================================================
-// CAMBIO SEGMENTO
-// ============================================================
 void loadNextSegment() {
-  currentSegmentIndex++;
-  if (currentSegmentIndex >= playlist.size()) currentSegmentIndex = 0;
+  if (playlist.size() == 0) return;
 
-  Segmento seg = playlist.get(currentSegmentIndex);
-  println(">>> SEGMENTO " + currentSegmentIndex + " | mood: " + seg.categoria);
-  println(">>> TESTO: " + seg.testo);
+  int nextIndex = currentSegmentIndex + 1;
+  if (nextIndex >= playlist.size()) {
+    return;
+  }
+  currentSegmentIndex = nextIndex;
 
-  imgSystem.loadAndConvert(seg.imagePath, imgX, imgY, imgW, imgH);
+  Segmento segment = playlist.get(currentSegmentIndex);
+  println(">>> SEGMENT " + currentSegmentIndex + " | mood: " + segment.categoria);
+  println(">>> TEXT: " + segment.testo);
 
-  moodManager.setMood(seg.categoria);
-
-  fullText = seg.testo;
-  wordsystem.calculatePages();
-  wordsystem.loadPage(0);
-
-  OscMessage msgVoce = new OscMessage("/speak");
-  msgVoce.add(seg.testo);
-  oscP5.send(msgVoce, pythonVoiceLocation);
+  moodManager.setMood(segment.categoria);
+  float elapsedSeconds = performanceElapsedSeconds();
+  slideDuration = max(0.5f, segment.endSeconds - elapsedSeconds);
+  wordsystem.beginScene(segment.testo, slideDuration);
+  if (segment.id != primedSegmentId) loadSegmentImages(segment);
+  primedSegmentId = -1;
 
   lastSegmentTime = millis();
 }
 
-// --------------------------------------------------------
-// LOGICA PAROLE
-// --------------------------------------------------------
-void updateWordLogic() {
-  int now = millis();
-  
-  if (currentState == STATE_WRITING) {
-    if (now - lastWordSpawnTime > wordSpawnRate && currentWordIndex < wordsObjects.size()) {
-      FlyingWord w = wordsObjects.get(currentWordIndex); 
-      w.active = true; 
-      lastWordSpawnTime = now;
-      currentWordIndex++;
-      
-      if (currentWordIndex >= wordsObjects.size()) {
-        currentState = STATE_WAITING_ARRIVAL;
-      }
-    }
-  }
-  else if (currentState == STATE_WAITING_ARRIVAL) {
-    if (wordsObjects.size() > 0) {
-      FlyingWord lastWord = wordsObjects.get(wordsObjects.size() - 1);
-      if (lastWord.locked) { 
-        currentState = STATE_READING;
-        for(FlyingWord w : wordsObjects) w.targetGlow = 255;
-      }
-    } else {
-       currentState = STATE_READING; 
-    }
+float performanceElapsedSeconds() {
+  if (!isPlaying) return 0;
+  return max(0, (millis() - performanceStartTime) / 1000.0f);
+}
+
+void advanceTimeline() {
+  int nextIndex = currentSegmentIndex + 1;
+  while (nextIndex < playlist.size()) {
+    Segmento nextSegment = playlist.get(nextIndex);
+    if (performanceElapsedSeconds() + 0.02f < nextSegment.startSeconds) return;
+    loadNextSegment();
+    nextIndex = currentSegmentIndex + 1;
   }
 }
 
-void calculatePages() {
-  textSize(fontSize); 
-  pages = new ArrayList<ArrayList<FlyingWord>>();
-  
-  String[] rawWords = split(fullText, ' ');
-  float x = margin;
-  float y = margin; 
-  float maxWidth = width - (margin * 2);
-  int currentSentenceId = 0; 
-  ArrayList<FlyingWord> currentPageList = new ArrayList<FlyingWord>();
-  
-  for (String str : rawWords) {
-    float w = textWidth(str + " ");
-    
-    if (x + w > margin + maxWidth) { 
-      x = margin;
-      y += leading; 
-    }
-    
-    currentPageList.add(new FlyingWord(str, x, y, currentSentenceId));
-    x += w; 
-  }
-  
-  if (currentPageList.size() > 0) {
-    pages.add(currentPageList);
-  }
-}
-
-void loadPage(int index) {
-  if (pages.size() > 0) {
-    wordsObjects = pages.get(0); 
-    currentWordIndex = 0;
-    currentState = STATE_WRITING;
-    lastWordSpawnTime = millis();
-  } else {
-    wordsObjects.clear();
-  }
-}
-
-void drawWords() {
-  blendMode(BLEND); 
-  
-  // Contatore per vedere quante parole sono attive
-  int attive = 0;
-  
-  for (FlyingWord w : wordsObjects) {
-    if (w.active) { 
-      w.update(); 
-      w.displayBase(currentVals.textColor, currentVals.glowColor); 
-      attive++;
-    }
-  }
-  
-  // Se non ci sono parole attive mentre siamo in PLAY, c'è un problema
-  if (isPlaying && attive == 0 && wordsObjects.size() > 0) {
-    // println("Allerta: Nessuna parola attiva!"); // Scommenta se vuoi spam nella console
-  }
-
-  blendMode(ADD);
-  for (FlyingWord w : wordsObjects) {
-    if (w.active && w.currentGlow > 1) { w.displayGlowingOnly(currentVals.glowColor); }
-  }
-  blendMode(BLEND);
-}
-
-void drawCurrentSegmentImages() {
+void updateCurrentSegmentImage(Atmosphere currentVals) {
   if (!isPlaying || currentSegmentIndex < 0 || currentSegmentIndex >= playlist.size()) return;
-  Segmento seg = playlist.get(currentSegmentIndex);
-  if (seg.imageLayers == null || seg.imageLayers.size() == 0) return;
-  
-  for (ImageLayer layer : seg.imageLayers) {
-    if (layer.role.equals("background")) {
-      blendMode(BLEND);
-      layer.displayBackground();
-    }
+
+  for (ImageParticleSystem system : imgSystems) {
+    system.updateAndDisplay(currentVals.chaos * 2);
   }
-  
-  blendMode(ADD);
-  float phase = millis() * 0.001f;
-  for (ImageLayer layer : seg.imageLayers) {
-    if (!layer.role.equals("background")) {
-      layer.displayOverlay(phase);
-    }
-  }
-  blendMode(BLEND);
 }
 
-// --------------------------------------------------------
-// OSC EVENT
-// --------------------------------------------------------
-void oscEvent(OscMessage msg) {
-  //oschandler.oscEvent(msg);
-  println("OSC: " + msg.addrPattern());
+void loadSegmentImages(Segmento segment) {
+  imgSystems.clear();
+  float sceneDuration = segment.durationSeconds();
+  float firstReveal = random(0.02f, 0.10f);
+  float secondReveal = random(0.24f, 0.44f);
+  float thirdReveal = random(0.55f, 0.78f);
+  for (int position = 0; position < segment.imageCount(); position++) {
+    ImageLayer layer = segment.imageLayerAt(position);
+    if (layer == null || layer.path == null || layer.path.length() == 0) continue;
 
-    if (msg.checkAddrPattern("/config/duration")) {
-      if (msg.checkTypetag("f"))      slideDuration = msg.get(0).floatValue();
-      else if (msg.checkTypetag("i")) slideDuration = msg.get(0).intValue();
-      println(">>> Durata slide: " + slideDuration);
-      return;
+    float rx = 0;
+    float ry = 0;
+    float rw = width;
+    float rh = height;
+    if (layer.role.equals("subject")) {
+      rw = width * random(0.30f, 0.42f);
+      rh = height * random(0.42f, 0.60f);
+      rx = random(1) < 0.5f ? width * 0.04f : width - rw - width * 0.04f;
+      ry = random(height * 0.16f, height - rh - height * 0.08f);
+    } else if (layer.role.equals("symbol")) {
+      rw = width * random(0.16f, 0.25f);
+      rh = height * random(0.18f, 0.30f);
+      rx = random(width * 0.08f, width - rw - width * 0.08f);
+      ry = random(height * 0.12f, height - rh - height * 0.12f);
     }
-  
-  if (msg.checkAddrPattern("/segment")) {
-    /*int cat = 0;
-    String txt = "";
-    if (msg.checkTypetag("is")) {
-      cat = msg.get(0).intValue();
-      txt = msg.get(1).stringValue();
-      println(" -> Letto (Int/String): Cat " + cat + ", Txt: " + txt);
-    } 
-    // CASO COMUNE: Float e Stringa ("fs")
-    else if (msg.checkTypetag("fs")) {
-      cat = (int)msg.get(0).floatValue(); // Convertiamo il float in int
-      txt = msg.get(1).stringValue();
-      println(" -> Letto (Float/String): Cat " + cat + ", Txt: " + txt);
-    }*/
-    String cat = msg.get(0).stringValue();
-    String txt = msg.get(1).stringValue();
-    playlist.add(new Segmento(playlist.size() + 1, cat, txt));
-    println(">>> Ricevuto: " + txt);     
-    
+
+    ImageParticleSystem system = new ImageParticleSystem();
+    system.loadAndConvert(layer.path, rx, ry, rw, rh, layer.role);
+    if (position == 0) system.revealAtSeconds = segment.startSeconds + sceneDuration * firstReveal;
+    else if (position == 1) system.revealAtSeconds = segment.startSeconds + sceneDuration * secondReveal;
+    else system.revealAtSeconds = segment.startSeconds + sceneDuration * thirdReveal;
+    imgSystems.add(system);
+  }
+}
+
+void applyPendingImageReload() {
+  if (pendingImageReloadId < 0) return;
+  Segmento segment = findSegment(pendingImageReloadId);
+  pendingImageReloadId = -1;
+  if (segment != null && currentSegmentIndex >= 0 && playlist.get(currentSegmentIndex).id == segment.id) {
+    loadSegmentImages(segment);
+  }
+}
+
+String normalizeDisplayText(String value) {
+  if (value == null) return "";
+  String normalized = Normalizer.normalize(value, Normalizer.Form.NFC);
+  normalized = normalized.replace('\u2018', '\'').replace('\u2019', '\'');
+  normalized = normalized.replace('\u201C', '"').replace('\u201D', '"');
+  return normalized;
+}
+
+void oscEvent(OscMessage message) {
+  println("OSC: " + message.addrPattern());
+
+  if (message.checkAddrPattern("/reset")) {
+    playlist.clear();
+    currentSegmentIndex = -1;
+    isPlaying = false;
+    performanceStartTime = 0;
+    streamingMode = false;
+    streamFinished = false;
+    fullText = "";
+    imgSystems.clear();
+    pendingImageReloadId = -1;
+    primedSegmentId = -1;
+    wordsystem = new WordsSystem();
+    println(">>> Playlist reset");
     return;
   }
-  
-  if (msg.checkAddrPattern("/image")) {
-    int segmentId = msg.get(0).intValue();
-    int layerIndex = msg.get(1).intValue();
-    String role = msg.get(2).stringValue();
-    String path = msg.get(3).stringValue();
-    
-    Segmento seg = findSegment(segmentId);
-    if (seg != null) {
-      seg.addImage(layerIndex, role, path);
-      println(">>> Ricevuta immagine per segmento " + segmentId + ": " + role + " -> " + path);
+
+  if (message.checkAddrPattern("/prepare")) {
+    int readyPort = 5007;
+    if (message.checkTypetag("i")) readyPort = message.get(0).intValue();
+    pythonReadyLocation = new NetAddress("127.0.0.1", readyPort);
+    OscMessage readyMessage = new OscMessage("/ready");
+    readyMessage.add(1);
+    oscP5.send(readyMessage, pythonReadyLocation);
+    println(">>> READY");
+    return;
+  }
+
+  if (message.checkAddrPattern("/prime")) {
+    int readyPort = 5007;
+    if (message.checkTypetag("i")) readyPort = message.get(0).intValue();
+    if (playlist.size() == 0) {
+      println(">>> Cannot prime: no scene received");
+      return;
+    }
+    pythonReadyLocation = new NetAddress("127.0.0.1", readyPort);
+    Segmento firstSegment = playlist.get(0);
+    moodManager.setMood(firstSegment.categoria);
+    loadSegmentImages(firstSegment);
+    primedSegmentId = firstSegment.id;
+    OscMessage primedMessage = new OscMessage("/primed");
+    primedMessage.add(primedSegmentId);
+    oscP5.send(primedMessage, pythonReadyLocation);
+    println(">>> PRIMED scene " + primedSegmentId);
+    return;
+  }
+
+  if (message.checkAddrPattern("/config/duration")) {
+    if (message.checkTypetag("f")) slideDuration = message.get(0).floatValue();
+    else if (message.checkTypetag("i")) slideDuration = message.get(0).intValue();
+    println(">>> Slide duration: " + slideDuration);
+    return;
+  }
+
+  if (message.checkAddrPattern("/config/streaming")) {
+    if (message.checkTypetag("i")) streamingMode = message.get(0).intValue() != 0;
+    println(">>> Streaming mode: " + streamingMode);
+    return;
+  }
+
+  if (message.checkAddrPattern("/segment")) {
+    int segmentId;
+    String mood;
+    String textValue;
+    String displayValue;
+    float startValue = playlist.size() * slideDuration;
+    float endValue = startValue + slideDuration;
+
+    if (message.checkTypetag("issff")) {
+      segmentId = message.get(0).intValue();
+      mood = message.get(1).stringValue();
+      textValue = normalizeDisplayText(message.get(2).stringValue());
+      displayValue = textValue;
+      startValue = message.get(3).floatValue();
+      endValue = message.get(4).floatValue();
+    } else if (message.checkTypetag("isss")) {
+      segmentId = message.get(0).intValue();
+      mood = message.get(1).stringValue();
+      textValue = normalizeDisplayText(message.get(2).stringValue());
+      displayValue = normalizeDisplayText(message.get(3).stringValue());
+    } else if (message.checkTypetag("iss")) {
+      segmentId = message.get(0).intValue();
+      mood = message.get(1).stringValue();
+      textValue = normalizeDisplayText(message.get(2).stringValue());
+      displayValue = textValue;
+    } else if (message.checkTypetag("ss")) {
+      segmentId = playlist.size() + 1;
+      mood = message.get(0).stringValue();
+      textValue = normalizeDisplayText(message.get(1).stringValue());
+      displayValue = textValue;
     } else {
-      println(">>> Immagine ignorata, segmento non trovato: " + segmentId);
+      println(">>> Unsupported /segment typetag: " + message.typetag());
+      return;
+    }
+
+    playlist.add(new Segmento(segmentId, mood, textValue, displayValue, startValue, endValue));
+    println(">>> Received segment " + segmentId + ": " + textValue);
+    return;
+  }
+
+  if (message.checkAddrPattern("/keywords")) {
+    int segmentId = message.get(0).intValue();
+    Segmento segment = findSegment(segmentId);
+    if (segment != null) {
+      segment.keywords.clear();
+      for (int i = 1; i < message.arguments().length; i++) {
+        segment.keywords.add(message.get(i).stringValue());
+      }
     }
     return;
   }
-  
-    if (msg.checkAddrPattern("/start")) {
-      if (playlist.size() > 0) {
-        println(">>> START!");
-        isPlaying       = true;
-        lastSegmentTime = millis() - (int)(slideDuration * 1000);
+
+  if (message.checkAddrPattern("/image")) {
+    int segmentId = message.get(0).intValue();
+    int layerIndex = message.get(1).intValue();
+    String role = message.get(2).stringValue();
+    String path = message.get(3).stringValue();
+
+    Segmento segment = findSegment(segmentId);
+    if (segment != null) {
+      segment.addImage(layerIndex, role, path);
+      println(">>> Received image for segment " + segmentId + ": " + role + " -> " + path);
+      if (isPlaying && currentSegmentIndex >= 0 && playlist.get(currentSegmentIndex).id == segmentId) {
+        pendingImageReloadId = segmentId;
       }
-      return;
+    } else {
+      println(">>> Ignored image, segment not found: " + segmentId);
     }
+    return;
+  }
+
+  if (message.checkAddrPattern("/start")) {
+    if (playlist.size() > 0) {
+      println(">>> START");
+      isPlaying = true;
+      performanceStartTime = millis();
+      currentSegmentIndex = -1;
+      lastSegmentTime = millis();
+      loadNextSegment();
+    }
+    return;
+  }
+
+  if (message.checkAddrPattern("/finish")) {
+    streamFinished = true;
+    println(">>> Stream finished; holding final segment");
+    return;
+  }
 }
 
 Segmento findSegment(int segmentId) {
-  for (Segmento seg : playlist) {
-    if (seg.id == segmentId) return seg;
+  for (Segmento segment : playlist) {
+    if (segment.id == segmentId) return segment;
   }
   return null;
-}
-
-// --------------------------------------------------------
-// GESTIONE ATMOSFERE
-// --------------------------------------------------------
-
-void updateCurrentAtmosphere(float smoothT) {
-  currentVals.bgColor = lerpColor(startMood.bgColor, targetMood.bgColor, smoothT);
-  currentVals.textColor = lerpColor(startMood.textColor, targetMood.textColor, smoothT);
-  currentVals.glowColor = lerpColor(startMood.glowColor, targetMood.glowColor, smoothT);
-  currentVals.particleColor = lerpColor(startMood.particleColor, targetMood.particleColor, smoothT);
-  currentVals.particleSpeedY = lerp(startMood.particleSpeedY, targetMood.particleSpeedY, smoothT);
-  currentVals.chaos = lerp(startMood.chaos, targetMood.chaos, smoothT);
-  currentVals.nebulaColor = lerpColor(startMood.nebulaColor, targetMood.nebulaColor, smoothT);
-  currentVals.nebulaAlphaMax = lerp(startMood.nebulaAlphaMax, targetMood.nebulaAlphaMax, smoothT);
-  currentVals.nebulaSpeed = lerp(startMood.nebulaSpeed, targetMood.nebulaSpeed, smoothT);
-}
-
-void setMood(String name) {
-  if (moods.containsKey(name)) {
-    if (currentVals != null) startMood = currentVals.copy();
-    targetMood = moods.get(name);
-    transitionStartTime = millis();
-  }
-}
-
-void mapClassToMood(int val) {
-    switch(val) {
-      case 1: setMood("ENERGETIC"); break;
-      case 2: setMood("SOLO"); break;
-      case 3: setMood("CALM"); break;
-      case 4: setMood("DEEP"); break;
-      case 5: setMood("DISSONANT"); break;
-      case 6: setMood("ANXIOUS"); break;
-      default: setMood("CALM"); break;
-    }
-}
-
-void setupMoods() {
-  moods = new HashMap<String, Atmosphere>();
-  
-  moods.put("ENERGETIC", new Atmosphere(color(40, 10, 5), color(240, 220, 180), color(255, 160, 20), color(255, 100, 50), -3.0f, 250.0f, 5.0f, color(255, 80, 20), 200.0f, 0.03f));
-  moods.put("SOLO", new Atmosphere(color(15, 15, 18), color(210, 210, 215), color(180, 180, 200), color(0,0,0,0), 0f, 0f, 0f, color(50, 50, 60), 60.0f, 0.002f));
-  moods.put("CALM", new Atmosphere(color(20, 15, 35), color(170, 180, 210), color(100, 150, 255), color(150, 100, 200), -0.3f, 60.0f, 0.2f, color(80, 100, 220), 150.0f, 0.008f));
-  moods.put("DEEP", new Atmosphere(color(2, 5, 15), color(110, 130, 150), color(0, 100, 200), color(0, 50, 100), 0.1f, 100.0f, 0.5f, color(0, 40, 120), 180.0f, 0.005f));
-  moods.put("DISSONANT", new Atmosphere(color(15, 20, 18), color(190, 210, 190), color(50, 255, 50), color(100, 255, 100), 1.0f, 150.0f, 2.0f, color(40, 200, 40), 160.0f, 0.015f));
-  moods.put("ANXIOUS", new Atmosphere(color(30, 5, 0), color(220, 150, 150), color(255, 20, 20), color(150, 50, 0), 4.0f, 300.0f, 1.5f, color(200, 20, 20), 220.0f, 0.025f));
-}
-
-void generateNebula(color c, float maxAlpha, float speed) {
-  timeZ += speed;
-  nebulaCanvas.beginDraw();
-  nebulaCanvas.loadPixels();
-  float r = red(c); float g = green(c); float b = blue(c);
-  for (int x = 0; x < nebulaCanvas.width; x++) {
-    for (int y = 0; y < nebulaCanvas.height; y++) {
-      float n1 = noise(x * noiseScale, y * noiseScale, timeZ);
-      float n2 = noise(x * noiseScale * 2.5f + 100, y * noiseScale * 2.5f + 100, timeZ * 1.5f);
-      float finalNoise = pow(lerp(n1, n2, 0.4f), 3.0f);
-      float alphaVal = constrain(map(finalNoise, 0, 0.8f, 0, maxAlpha), 0, maxAlpha);
-      nebulaCanvas.pixels[x + y * nebulaCanvas.width] = color(r, g, b, alphaVal);
-    }
-  }
-  nebulaCanvas.updatePixels();
-  nebulaCanvas.endDraw();
-}
-
-void drawGUI(float smoothT) {
-  fill(255, 150); textSize(14);
-  text("Segmento " + (currentSegmentIndex+1) + "/" + playlist.size(), 20, height - 30);
 }

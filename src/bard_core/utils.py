@@ -24,11 +24,31 @@ def compute_chunk_and_words(duration_s: float | None, ratio: str, reading_wpm: f
         chunk_s = max(1.0, round(duration_s * ratio_value))
     else:
         chunk_s = max(1.0, default_chunk_s)
-    words = min(20, int(round(chunk_s * (reading_wpm / 60.0))))
+    words = min(150, max(6, int(round(chunk_s * (reading_wpm / 60.0)))))
     return float(chunk_s), words
 
 
 def detect_audio_duration(path: Path) -> float | None:
+    try:
+        from mutagen import File as MutagenFile
+
+        audio = MutagenFile(path)
+        if audio is not None and audio.info is not None:
+            duration = float(audio.info.length)
+            if duration > 0:
+                return duration
+    except (ImportError, OSError, ValueError):
+        pass
+
+    try:
+        import soundfile as sf
+
+        info = sf.info(str(path))
+        if info.duration > 0:
+            return float(info.duration)
+    except (ImportError, OSError, RuntimeError):
+        pass
+
     try:
         import librosa
     except ImportError:
@@ -52,6 +72,28 @@ def estimate_segment_count(duration_s: float | None, chunk_s: float, fallback: i
     if duration_s and duration_s > 0 and chunk_s > 0:
         return max(1, int(math.ceil(duration_s / chunk_s)))
     return fallback
+
+
+def target_story_words(
+    duration_s: float,
+    reading_wpm: float,
+    coverage: float = 0.72,
+    *,
+    minimum: int = 12,
+    maximum: int = 150,
+) -> int:
+    """Reserve part of the segment for word animation and comprehension."""
+    safe_duration = max(1.0, duration_s)
+    safe_wpm = max(30.0, reading_wpm)
+    safe_coverage = max(0.25, min(coverage, 0.95))
+    return max(minimum, min(maximum, round(safe_duration * safe_wpm / 60.0 * safe_coverage)))
+
+
+def story_chunk_seconds(target_words: int, reading_wpm: float, coverage: float = 0.72) -> float:
+    safe_words = max(12, target_words)
+    safe_wpm = max(30.0, reading_wpm)
+    safe_coverage = max(0.25, min(coverage, 0.95))
+    return max(8.0, safe_words * 60.0 / (safe_wpm * safe_coverage))
 
 
 def parse_time_span(text: str) -> tuple[float | None, float | None]:

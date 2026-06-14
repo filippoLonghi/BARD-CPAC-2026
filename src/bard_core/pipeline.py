@@ -7,7 +7,11 @@ from .audio import analyze_with_clap, analyze_with_gemini
 from .config import BardSettings
 from .contracts import PipelineResult
 from .images import generate_images_for_fragments
-from .story import generate_story_with_gemini, generate_story_with_local_mistral
+from .story import (
+    generate_story_with_gemini,
+    generate_story_with_local_mistral,
+    translate_music_to_story_cues,
+)
 from .storage import upload_directory_to_gcs
 from .transport import send_fragments_to_processing
 from .utils import compute_chunk_and_words, detect_audio_duration, estimate_segment_count
@@ -54,12 +58,20 @@ def run_pipeline(
             resolved_audio,
             settings,
             target_segments=estimate_segment_count(duration_s, chunk_s),
+            duration_s=duration_s,
         )
     else:
         raise ValueError(f"Unsupported audio provider: {chosen_audio_provider}")
 
+    story_bible: dict[str, object] = {}
+    story_state: dict[str, object] = {}
     if chosen_story_provider in {"vertex", "gemini"}:
-        fragments, full_story = generate_story_with_gemini(music_segments, settings, words_per_fragment)
+        music_segments = translate_music_to_story_cues(music_segments, settings)
+        fragments, full_story, story_bible, story_state = generate_story_with_gemini(
+            music_segments,
+            settings,
+            words_per_fragment,
+        )
     elif chosen_story_provider in {"local", "mistral"}:
         fragments, full_story = generate_story_with_local_mistral(music_segments, settings, words_per_fragment)
     else:
@@ -67,6 +79,11 @@ def run_pipeline(
 
     run_id = make_run_id()
     destination = output_dir or (settings.output_dir / run_id)
+    slide_duration_s = (
+        duration_s / len(fragments)
+        if duration_s and duration_s > 0 and fragments
+        else chunk_s
+    )
 
     result = PipelineResult(
         run_id=run_id,
@@ -74,12 +91,20 @@ def run_pipeline(
         music_segments=music_segments,
         fragments=fragments,
         full_story=full_story,
+        story_bible=story_bible,
+        story_state=story_state,
         metadata={
             "duration_s": duration_s,
             "chunk_s": chunk_s,
+            "processing_slide_duration_s": slide_duration_s,
             "words_per_fragment": words_per_fragment,
             "audio_provider": chosen_audio_provider,
             "story_provider": chosen_story_provider,
+            "story_language": settings.story_language,
+            "story_level": settings.story_level,
+            "reading_wpm": settings.default_wpm,
+            "text_coverage": settings.text_coverage,
+            "execution_mode": "batch",
         },
     )
 
@@ -110,7 +135,8 @@ def run_pipeline(
             fragments=fragments,
             host=settings.osc_host,
             port=settings.osc_port,
-            slide_duration_s=chunk_s,
+            slide_duration_s=slide_duration_s,
             include_images=generate_images,
+            audio_path=resolved_audio,
         )
     return result

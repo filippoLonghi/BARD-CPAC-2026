@@ -69,8 +69,17 @@ class BardSettings:
     imagen_location: str
     osc_host: str
     osc_port: int
+    osc_ready_port: int
+    processing_ready_timeout_s: float
     default_chunk_s: float
     default_wpm: float
+    story_language: str
+    story_level: str
+    text_coverage: float
+    target_words_per_fragment: int
+    music_window_s: float
+    story_scene_s: float
+    processing_startup_delay_s: float
     use_4bit: bool
 
     @classmethod
@@ -105,7 +114,16 @@ class BardSettings:
             ),
             osc_host=env_str("BARD_OSC_HOST", "127.0.0.1"),
             osc_port=int(env_str("BARD_OSC_PORT", "5005")),
+            osc_ready_port=env_int("BARD_OSC_READY_PORT", 5007),
+            processing_ready_timeout_s=env_float("BARD_PROCESSING_READY_TIMEOUT_S", 8.0),
             default_chunk_s=env_float("BARD_DEFAULT_CHUNK_S", 30.0),
-            default_wpm=env_float("BARD_READING_WPM", 180.0),
+            default_wpm=env_float("BARD_READING_WPM", 120.0),
+            story_language=env_str("BARD_STORY_LANGUAGE", "English"),
+            story_level=env_str("BARD_STORY_LEVEL", "children"),
+            text_coverage=env_float("BARD_TEXT_COVERAGE", 0.72),
+            target_words_per_fragment=env_int("BARD_TARGET_WORDS_PER_FRAGMENT", 72),
+            music_window_s=env_float("BARD_MUSIC_WINDOW_S", 15.0),
+            story_scene_s=env_float("BARD_STORY_SCENE_S", 60.0),
+            processing_startup_delay_s=env_float("BARD_PROCESSING_STARTUP_DELAY_S", 1.5),
             use_4bit=env_bool("BARD_USE_4BIT", True),
         )

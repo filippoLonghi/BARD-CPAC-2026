@@ -40,7 +40,7 @@ Each teammate should keep secrets outside this repo, using this assumed layout:
 
 Use [configs/local.example.env](configs/local.example.env) as the template for `bard-local.env`.
 
-## Recommended Smoke Test
+## Recommended Fragment Test
 
 After setup, run the cloud-oriented local pipeline:
 
@@ -48,7 +48,10 @@ After setup, run the cloud-oriented local pipeline:
 $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\sad_walk_komiku.ogg `
+  --fragments 3 `
+  --out-dir runs\first-fragment-test
 ```
 
 Expected output:
@@ -60,6 +63,7 @@ runs/<timestamp>/
   story.json
   scene_cards.json
   full_story.txt
+  audio_chunks/
 ```
 
 ## Processing Test
@@ -70,20 +74,37 @@ Open the Processing sketch:
 apps/processing/bard_story_visuals
 ```
 
-Then run:
+Press Run in Processing first, then run:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --send-osc
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\sad_walk_komiku.ogg `
+  --fragments 3 `
+  --generate-images `
+  --image-provider openverse `
+  --send-osc
 ```
 
 Current OSC messages:
 
 ```text
+/reset
 /config/duration <float seconds>
-/segment <string mood> <string text>
+/config/streaming <int 0|1>
+/segment <int segment_id> <string mood> <string full_text> <float start_s> <float end_s>
+/keywords <int segment_id> <string...>
 /image <int segment_id> <int layer_index> <string role> <string local_path>
 /start
+/finish
 ```
+
+For an uploaded-audio demo, BARD starts the original music and Processing after scene 1 has complete
+story text, usable images, and a short OSC ingestion delay. Later scenes generate during playback. Complete story sentences appear continuously
+in changing screen positions; internal fragment boundaries only control mood and image timing.
+
+The default hybrid plan keeps approximately 15-second timestamped music observations but groups them
+into approximately 60-second story/image scenes. This preserves small musical changes without paying
+for a story call and three image calls for every observation.
 
 Allowed moods:
 
@@ -136,6 +157,9 @@ See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, ou
 - [docs/future_development.md](docs/future_development.md): roadmap, live pipeline, model freedom, team roles.
 - [docs/image_generation.md](docs/image_generation.md): FLUX, Imagen, Openverse, scene cards, and Processing image OSC.
 - [docs/architecture.md](docs/architecture.md): current technical architecture and provider structure.
+- [docs/pipeline_data.md](docs/pipeline_data.md): exact JSON and OSC data passed between every stage.
+- [docs/testing_and_costs.md](docs/testing_and_costs.md): test tracks, Processing order, commands, and per-run cost.
+- [docs/timing_and_sync.md](docs/timing_and_sync.md): audio master clock, reading speed, image reveals, and free replay.
 - [docs/project_structure.md](docs/project_structure.md): where files live in the repo.
 - [configs/local.example.env](configs/local.example.env): local private env template.
 - [deploy/cloud-run.env.example](deploy/cloud-run.env.example): Cloud Run env template.
