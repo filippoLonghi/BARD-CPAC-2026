@@ -2,6 +2,10 @@
 
 These steps are written for Windows PowerShell and the current repo structure.
 
+For the current complete `run-fragments` pipeline, Processing replay, image-provider commands, and
+parameter effects, use [running_the_pipeline.md](running_the_pipeline.md). `run-local` examples in
+this setup document describe the older prototype path.
+
 Assumed local folder layout:
 
 ```text
@@ -366,7 +370,9 @@ Recommended first smoke test, using GCP/Vertex AI and no Processing:
 $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --out-dir runs\gcp-smoke-test
 ```
 
 This should create a new folder under `runs/` with:
@@ -389,7 +395,12 @@ Wait a few minutes and run the command again.
 Processing/OSC path, only after opening `apps/processing/bard_story_visuals` in Processing:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --send-osc
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --generate-images `
+  --image-provider openverse `
+  --send-osc `
+  --out-dir runs\gcp-processing-test
 ```
 
 Prototype-compatible path, using local CLAP and local Mistral:
@@ -466,13 +477,20 @@ After this works, also test the local orchestrator against Vertex AI:
 $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --out-dir runs\vertex-orchestrator-test
 ```
 
 Then, with Processing open, test the live OSC bridge:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --send-osc
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --generate-images `
+  --image-provider openverse `
+  --send-osc `
+  --out-dir runs\vertex-processing-test
 ```
 
 ## Notes On Secrets

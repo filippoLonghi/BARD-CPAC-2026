@@ -3,6 +3,10 @@
 Prices below were checked on June 13, 2026. Verify them before a public performance because cloud
 pricing and model availability can change.
 
+For the canonical complete-pipeline commands and all current parameter effects, start with
+[running_the_pipeline.md](running_the_pipeline.md). This document contains additional test scenarios
+and cost examples.
+
 ## Setup
 
 ```powershell
@@ -82,7 +86,7 @@ The filename `sad_walk_komiku.ogg` is neutral on purpose. Its source title says 
 piano”, but that title is not evidence that a piano is audible. BARD must infer instruments from each
 chunk and may correctly return `uncertain`.
 
-## Short Imagen Test: Three Fragments, Nine Images
+## Short Imagen Test: Three Scenes, Nine Images
 
 Open Processing first, then run:
 
@@ -98,8 +102,9 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --out-dir runs\imagen-three-fragments
 ```
 
-This performs 3 audio calls, 3 music-to-story translation calls, 1 story-bible call, 3 story-fragment
-calls, and 9 Imagen calls. The image portion is about `$0.18` at `$0.02/image`; allow roughly
+This performs 3 grouped audio calls, no music-to-story LLM calls, 1 story-bible call, 3 story-scene
+calls, and 9 Imagen calls. An extra repair call occurs only if a story scene materially exceeds its
+word budget. The image portion is about `$0.18` at `$0.02/image`; allow roughly
 `$0.19-$0.23` total depending on Gemini input/output size.
 
 ## Long Coherence Test With Openverse

@@ -2,6 +2,9 @@
 
 This document defines the next direction for BARD after the hackathon prototype.
 
+This is a roadmap, not the current run guide. Use
+[running_the_pipeline.md](running_the_pipeline.md) for executable commands and current parameters.
+
 BARD is not meant to generate a finished video after the performance. The goal is a live or near-live system: the music starts, the system listens, a story begins to appear after a delay, images arrive after another delay, and text, colors, effects, and generated images are composed in real time into an abstract visual narration.
 
 ## Core Idea

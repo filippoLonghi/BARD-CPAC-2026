@@ -54,7 +54,8 @@ Google documents that Gemini can detect emotion in music and analyze timestamped
 
 ## 3. Musical Observations To Dramatic Canvas
 
-A separate text call translates musical vocabulary into story-safe directions:
+Python locally translates measured valence, arousal, and tension into story-safe directions. This
+stage does not make another LLM call:
 
 ```json
 {
@@ -67,8 +68,8 @@ A separate text call translates musical vocabulary into story-safe directions:
 }
 ```
 
-This stage is explicitly forbidden from returning words about music, instruments, genre, tempo,
-rhythm, harmony, or recordings.
+The story-generation prompt receives only these dramatic directions. Instrument, genre, tempo,
+rhythm, harmony, and recording vocabulary do not enter the audience-facing story.
 
 ## 4. Story Bible And Continuity State
 
@@ -125,27 +126,30 @@ debugging view; it includes prompts, provider, model, local path, source/license
 
 ## 6. Python To Processing
 
-For uploaded-audio demonstrations, BARD sends fragment 1 as soon as its story and images are ready,
-then starts audio and Processing. Later fragments are generated while playback continues:
+For uploaded-audio demonstrations, BARD first verifies Processing with `/prepare` and `/ready`.
+After scene 1 text and images are ready, Processing preloads them through `/prime` and `/primed`.
+Only then do the Processing clock and source audio start. Later scenes generate during playback:
 
 ```text
 /reset
+/prepare -> /ready
 /config/duration <float seconds>
 /config/streaming <0 batch | 1 sequential>
 /segment <id> <mood> <full_story_text> <start_s> <end_s>
 /keywords <id> <keyword...>
 /image <id> <layer_index> <role> <local_path>
+/prime -> /primed
 /start
 /finish
 ```
 
-Processing uses `start_s/end_s` as the internal music clock. Mood and image particles change on those
-boundaries, but the text renderer does not clear. It splits the complete prose into sentences, queues
-them continuously, places each sentence in a different screen region, and assembles its words one by
-one. Finished sentences fade while later sentences arrive, so fragment boundaries are not announced.
+Processing uses `start_s/end_s` as the internal music clock. Each sentence receives a deadline
+proportional to its word count. Words assemble progressively, then snap into place if necessary so
+the complete sentence remains readable before the next sentence slot. Every saved sentence is shown
+before its scene boundary.
 
-Python starts local playback with `pygame` immediately before `/start`. Processing follows the audio
-clock, not accumulated slide delays. If a cloud fragment arrives late, Processing shows it at the
+Python sends `/start` and starts local playback with `pygame` immediately afterward. Processing
+follows the audio clock, not accumulated slide delays. If a cloud scene arrives late, Processing shows it at the
 correct current time instead of shifting every later fragment; until it arrives, the previous visual
 state remains visible. True microphone mode will replace the local player with the live input stream.
 
@@ -173,6 +177,8 @@ final short scene therefore receives fewer words and finishes with the music. `-
 These controls are configurable:
 
 ```text
+--music-window-seconds 15
+--chunk-seconds 60
 --reading-wpm 105
 --text-coverage 0.70
 --story-language Italian

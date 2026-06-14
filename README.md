@@ -40,33 +40,42 @@ Each teammate should keep secrets outside this repo, using this assumed layout:
 
 Use [configs/local.example.env](configs/local.example.env) as the template for `bard-local.env`.
 
-## Recommended Fragment Test
+## Complete Pipeline
 
-After setup, run the cloud-oriented local pipeline:
+The canonical commands and explanation of every parameter are in
+[docs/running_the_pipeline.md](docs/running_the_pipeline.md).
+
+Open Processing, press Run, then execute:
 
 ```powershell
 $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\sad_walk_komiku.ogg `
-  --fragments 3 `
-  --out-dir runs\first-fragment-test
+  --audio data\test_audio\arabesque.mp3 `
+  --story-language Italian `
+  --story-level early-reader `
+  --generate-images `
+  --image-provider openverse `
+  --max-image-assets 3 `
+  --send-osc `
+  --out-dir runs\arabesque-complete
 ```
 
 Expected output:
 
 ```text
-runs/<timestamp>/
+runs/arabesque-complete/
   result.json
   music_segments.json
   story.json
   scene_cards.json
   full_story.txt
   audio_chunks/
+  images/
 ```
 
-## Processing Test
+## Processing Replay Without APIs
 
 Open the Processing sketch:
 
@@ -74,26 +83,27 @@ Open the Processing sketch:
 apps/processing/bard_story_visuals
 ```
 
-Press Run in Processing first, then run:
+Press Run in Processing first, then replay the saved result:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\sad_walk_komiku.ogg `
-  --fragments 3 `
-  --generate-images `
-  --image-provider openverse `
-  --send-osc
+python -m bard_core --env-file "$ENV_FILE" send-osc `
+  --story-json runs\arabesque-hybrid-test\story.json `
+  --audio data\test_audio\arabesque.mp3 `
+  --include-images `
+  --delay 0
 ```
 
 Current OSC messages:
 
 ```text
 /reset
+/prepare -> /ready
 /config/duration <float seconds>
 /config/streaming <int 0|1>
 /segment <int segment_id> <string mood> <string full_text> <float start_s> <float end_s>
 /keywords <int segment_id> <string...>
 /image <int segment_id> <int layer_index> <string role> <string local_path>
+/prime -> /primed
 /start
 /finish
 ```
@@ -141,19 +151,12 @@ python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-p
 python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-provider imagen
 ```
 
-To run the full audio/story/image pipeline:
-
-```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider openverse
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider replicate
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider imagen
-```
-
 See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, output files, and debugging.
 
 ## Documents
 
 - [docs/gcp_setup.md](docs/gcp_setup.md): team setup, GCP, local env, Cloud Run.
+- [docs/running_the_pipeline.md](docs/running_the_pipeline.md): canonical terminal commands and parameter effects.
 - [docs/future_development.md](docs/future_development.md): roadmap, live pipeline, model freedom, team roles.
 - [docs/image_generation.md](docs/image_generation.md): FLUX, Imagen, Openverse, scene cards, and Processing image OSC.
 - [docs/architecture.md](docs/architecture.md): current technical architecture and provider structure.

@@ -16,6 +16,8 @@ deploy/
   cloud-run.env.example      Cloud Run environment template.
 
 docs/
+  running_the_pipeline.md    Canonical commands and parameter effects.
+  timing_and_sync.md         Audio, text, sentence, and image timing model.
   architecture.md            System shape and future async design.
   future_development.md      Roadmap, live-video direction, model options, team roles.
   gcp_setup.md               Exact GCP setup commands.

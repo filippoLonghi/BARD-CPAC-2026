@@ -2,6 +2,8 @@
 
 This document explains the first image-keyframe implementation for BARD.
 
+For complete end-to-end commands, use [running_the_pipeline.md](running_the_pipeline.md).
+
 The image stage runs after story generation:
 
 ```text
@@ -158,13 +160,21 @@ If only two image files appear, open `image_manifest.json`; the missing layer sh
 Full pipeline Openverse smoke test:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider openverse
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --generate-images `
+  --image-provider openverse `
+  --out-dir runs\arabesque-openverse
 ```
 
 Cheap FLUX generation:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider replicate
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --generate-images `
+  --image-provider replicate `
+  --out-dir runs\arabesque-replicate
 ```
 
 Imagen generation with GCP credits:
@@ -184,13 +194,22 @@ python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --fake-ca
 Processing test with generated/retrieved images:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider gemini --story-provider vertex --generate-images --image-provider openverse --send-osc
+python -m bard_core --env-file "$ENV_FILE" run-fragments `
+  --audio data\test_audio\arabesque.mp3 `
+  --generate-images `
+  --image-provider openverse `
+  --send-osc `
+  --out-dir runs\arabesque-processing-test
 ```
 
 Send an existing generated `story.json` to Processing:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" send-osc --story-json runs\<run_id>\story.json --duration 10 --include-images
+python -m bard_core --env-file "$ENV_FILE" send-osc `
+  --story-json runs\<run_id>\story.json `
+  --audio path\to\the-original-audio.mp3 `
+  --include-images `
+  --delay 0
 ```
 
 ## Debugging
