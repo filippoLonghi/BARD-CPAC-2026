@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import threading
 import time
+import urllib.parse
+
 from typing import Callable
 
 from ..contracts import StoryFragment
@@ -154,10 +156,12 @@ def _send_fragment_images(
 def _segment_payload(fragment: StoryFragment, fallback_duration_s: float) -> list[object]:
     start_s = float(fragment.start_s or 0.0)
     end_s = float(fragment.end_s) if fragment.end_s is not None else start_s + fallback_duration_s
+    # testo_sicuro è il testo del frammento codificato in modo da avere le lettere accentate in OSC
+    testo_sicuro = urllib.parse.quote(fragment.text)
     return [
         int(fragment.id),
         fragment.normalized_mood(),
-        fragment.text,
+        testo_sicuro,
         start_s,
         max(start_s + 0.1, end_s),
     ]
