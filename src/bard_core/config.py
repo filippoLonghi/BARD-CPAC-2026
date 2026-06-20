@@ -70,6 +70,7 @@ class BardSettings:
     osc_host: str
     osc_port: int
     osc_ready_port: int
+    osc_ready_bind_host: str
     processing_ready_timeout_s: float
     default_chunk_s: float
     default_wpm: float
@@ -115,6 +116,7 @@ class BardSettings:
             osc_host=env_str("BARD_OSC_HOST", "127.0.0.1"),
             osc_port=int(env_str("BARD_OSC_PORT", "5005")),
             osc_ready_port=env_int("BARD_OSC_READY_PORT", 5007),
+            osc_ready_bind_host=env_str("BARD_OSC_READY_BIND_HOST", "127.0.0.1"),
             processing_ready_timeout_s=env_float("BARD_PROCESSING_READY_TIMEOUT_S", 8.0),
             default_chunk_s=env_float("BARD_DEFAULT_CHUNK_S", 30.0),
             default_wpm=env_float("BARD_READING_WPM", 120.0),

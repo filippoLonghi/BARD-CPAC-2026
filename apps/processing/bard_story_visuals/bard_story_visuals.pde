@@ -35,6 +35,8 @@ Nebula nebula;
 ArrayList<ImageParticleSystem> imgSystems = new ArrayList<ImageParticleSystem>();
 int pendingImageReloadId = -1;
 int primedSegmentId = -1;
+String processingAudioPath = "";
+ProcessingAudioPlayer processingAudioPlayer = new ProcessingAudioPlayer();
 
 float imgX, imgY, imgW, imgH;
 
@@ -214,6 +216,7 @@ void oscEvent(OscMessage message) {
   println("OSC: " + message.addrPattern());
 
   if (message.checkAddrPattern("/reset")) {
+    processingAudioPlayer.close();
     playlist.clear();
     currentSegmentIndex = -1;
     isPlaying = false;
@@ -226,6 +229,14 @@ void oscEvent(OscMessage message) {
     primedSegmentId = -1;
     wordsystem = new WordsSystem();
     println(">>> Playlist reset");
+    return;
+  }
+
+  if (message.checkAddrPattern("/audio")) {
+    if (message.checkTypetag("s")) {
+      processingAudioPath = message.get(0).stringValue();
+      println(">>> Audio path: " + processingAudioPath);
+    }
     return;
   }
 
@@ -249,6 +260,14 @@ void oscEvent(OscMessage message) {
     }
     pythonReadyLocation = new NetAddress("127.0.0.1", readyPort);
     Segmento firstSegment = playlist.get(0);
+    if (processingAudioPath.length() > 0) {
+      try {
+        processingAudioPlayer.load(processingAudioPath);
+      } catch (Exception error) {
+        println(">>> Cannot load Processing audio: " + error.getMessage());
+        return;
+      }
+    }
     moodManager.setMood(firstSegment.categoria);
     loadSegmentImages(firstSegment);
     primedSegmentId = firstSegment.id;
@@ -346,6 +365,7 @@ void oscEvent(OscMessage message) {
   if (message.checkAddrPattern("/start")) {
     if (playlist.size() > 0) {
       println(">>> START");
+      processingAudioPlayer.playFromStart();
       isPlaying = true;
       performanceStartTime = millis();
       currentSegmentIndex = -1;

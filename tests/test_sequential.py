@@ -9,10 +9,10 @@ import wave
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from bard_core.audio.chunks import split_audio_file
+from bard_core.audio.chunks import convert_audio_to_wav, split_audio_file
 from bard_core.audio.gemini_provider import analyze_chunk_windows_with_gemini
 from bard_core.contracts import ImageAsset, MusicSegment, StoryFragment
-from bard_core.pipeline_sequential import _validate_scene_ready
+from bard_core.pipeline_sequential import _processing_visible_path, _validate_scene_ready
 from bard_core.story.gemini_story import _word_count, narrative_phase
 from bard_core.story.music_translation import translate_music_to_story_cues_local
 
@@ -34,6 +34,36 @@ class SequentialPipelineTests(TestCase):
             self.assertEqual([round(chunk.start_s, 3) for chunk in chunks], [0.0, 1.0, 2.0])
             self.assertEqual([round(chunk.end_s, 3) for chunk in chunks], [1.0, 2.0, 3.0])
             self.assertTrue(all(chunk.path.exists() for chunk in chunks))
+
+    def test_audio_conversion_creates_processing_compatible_wav(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "input.wav"
+            target = root / "output" / "processing_audio.wav"
+            with wave.open(str(source), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(8000)
+                wav.writeframes(b"\x00\x00" * 8000)
+
+            converted = convert_audio_to_wav(source, target)
+
+            self.assertTrue(converted.exists())
+            with wave.open(str(converted), "rb") as wav:
+                self.assertEqual(wav.getframerate(), 8000)
+                self.assertEqual(wav.getnchannels(), 1)
+
+    def test_docker_path_is_mapped_to_host_workspace(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "BARD_HOST_WORKSPACE": "C:\\work\\BARD",
+                "BARD_CONTAINER_WORKSPACE": "/workspace",
+            },
+        ):
+            mapped = _processing_visible_path(Path("/workspace/runs/demo/image.jpg"))
+
+        self.assertEqual(mapped, "C:/work/BARD/runs/demo/image.jpg")
 
     def test_story_phase_reserves_final_fragment_for_resolution(self) -> None:
         self.assertEqual(narrative_phase(0, 5), "opening and problem")

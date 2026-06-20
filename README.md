@@ -157,6 +157,7 @@ See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, ou
 
 - [docs/gcp_setup.md](docs/gcp_setup.md): team setup, GCP, local env, Cloud Run.
 - [docs/running_the_pipeline.md](docs/running_the_pipeline.md): canonical terminal commands and parameter effects.
+- [docs/docker.md](docs/docker.md): no-venv Docker Desktop build and complete pipeline commands.
 - [docs/future_development.md](docs/future_development.md): roadmap, live pipeline, model freedom, team roles.
 - [docs/image_generation.md](docs/image_generation.md): FLUX, Imagen, Openverse, scene cards, and Processing image OSC.
 - [docs/architecture.md](docs/architecture.md): current technical architecture and provider structure.

@@ -16,6 +16,7 @@ deploy/
   cloud-run.env.example      Cloud Run environment template.
 
 docs/
+  docker.md                  Docker Desktop workflow and networking.
   running_the_pipeline.md    Canonical commands and parameter effects.
   timing_and_sync.md         Audio, text, sentence, and image timing model.
   architecture.md            System shape and future async design.

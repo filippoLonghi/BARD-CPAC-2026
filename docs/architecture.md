@@ -45,6 +45,19 @@ BARD_STORY_PROVIDER=vertex
 
 The cloud-oriented mode avoids hosting CLAP or Mistral yourself. It calls Vertex AI managed models and is the cheapest path to a deployable Cloud Run service.
 
+## Persistence On GCP
+
+In the current sequential runner, `BARD_STORAGE_BUCKET` enables a final recursive upload of the run
+directory to `gs://<bucket>/runs/<run-id>/`. This includes JSON contracts, story text, audio chunks,
+images, and the Docker/Processing playback WAV when present. A mounted Docker workspace still keeps
+the same files locally; a Cloud Run filesystem is temporary, so GCS is the durable copy there.
+
+A complete managed deployment should keep raw uploaded audio and durable run artifacts in Cloud
+Storage, credentials in Secret Manager or workload identity, and optional searchable run status in
+Firestore/Cloud SQL. Vertex AI model execution itself does not create application files in the BARD
+bucket. Host Processing remains outside Cloud Run and will eventually need signed/download URLs or a
+local bridge instead of filesystem paths.
+
 ## Processing Contract
 
 Use the sketch in `apps/processing/bard_story_visuals` for now. It listens on port `5005`.

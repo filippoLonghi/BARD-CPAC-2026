@@ -65,3 +65,29 @@ def split_audio_file(
             start_frame = end_frame
             chunk_id += 1
     return chunks
+
+
+def convert_audio_to_wav(audio_path: Path, output_path: Path) -> Path:
+    """Create a PCM WAV that Processing/Java Sound can play without codec plugins."""
+    try:
+        import soundfile as sf
+    except ImportError as exc:
+        raise RuntimeError("Audio conversion requires `pip install soundfile`.") from exc
+
+    resolved = audio_path.expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with sf.SoundFile(str(resolved), "r") as source:
+        with sf.SoundFile(
+            str(output_path),
+            "w",
+            samplerate=source.samplerate,
+            channels=source.channels,
+            format="WAV",
+            subtype="PCM_16",
+        ) as target:
+            while True:
+                block = source.read(65_536, dtype="float32", always_2d=True)
+                if len(block) == 0:
+                    break
+                target.write(block)
+    return output_path.resolve()

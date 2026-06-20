@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import ceil
 from pathlib import Path
 
-from .audio import analyze_chunk_windows_with_gemini, split_audio_file
+from .audio import analyze_chunk_windows_with_gemini, convert_audio_to_wav, split_audio_file
 from .config import BardSettings
 from .contracts import MusicSegment, PipelineResult, StoryFragment
 from .images import generate_images_for_fragments
@@ -29,6 +29,7 @@ def run_sequential_pipeline(
     words_per_fragment: int | None = None,
     music_window_s: float | None = None,
     startup_delay_s: float | None = None,
+    playback_mode: str = "python",
     generate_images: bool = False,
     image_provider: str | None = None,
     max_image_assets: int = 3,
@@ -97,6 +98,9 @@ def run_sequential_pipeline(
         "estimated_cost_usd": 0.0,
     }
     target_word_counts: list[int] = []
+    playback_mode = playback_mode.lower().strip()
+    if playback_mode not in {"python", "processing"}:
+        raise ValueError("playback_mode must be 'python' or 'processing'.")
     osc = (
         ProcessingOscStream(
             settings.osc_host,
@@ -104,14 +108,19 @@ def run_sequential_pipeline(
             slide_duration_s=effective_chunk_s,
             include_images=generate_images,
             ready_port=settings.osc_ready_port,
+            ready_bind_host=settings.osc_ready_bind_host,
+            path_mapper=_processing_visible_path,
         )
         if send_osc
         else None
     )
-    playback = prepare_audio_playback(resolved_audio) if send_osc else None
+    playback = prepare_audio_playback(resolved_audio) if send_osc and playback_mode == "python" else None
     if osc:
         osc.start()
         osc.await_ready(settings.processing_ready_timeout_s)
+        if playback_mode == "processing":
+            processing_audio = convert_audio_to_wav(resolved_audio, destination / "processing_audio.wav")
+            osc.set_processing_audio(_processing_visible_path(processing_audio))
 
     next_music_segment_id = 1
     for index, chunk in enumerate(chunks):
@@ -182,6 +191,7 @@ def run_sequential_pipeline(
             planned_total,
             chosen_image_provider,
             max_image_assets,
+            playback_mode,
             image_totals,
             target_word_counts,
             settings,
@@ -196,6 +206,11 @@ def run_sequential_pipeline(
                 osc.prime(settings.processing_ready_timeout_s)
                 osc.play()
                 playback.play()
+            elif index == 0 and playback_mode == "processing":
+                if processing_delay_s > 0:
+                    osc.settle(processing_delay_s)
+                osc.prime(settings.processing_ready_timeout_s)
+                osc.play()
 
     if playback:
         playback.wait()
@@ -225,6 +240,7 @@ def _build_result(
     planned_total: int,
     image_provider: str,
     max_image_assets: int,
+    playback_mode: str,
     image_totals: dict[str, int | float],
     target_word_counts: list[int],
     settings: BardSettings,
@@ -261,6 +277,7 @@ def _build_result(
             "text_coverage": settings.text_coverage,
             "target_words_per_fragment": settings.target_words_per_fragment,
             "image_provider": image_provider,
+            "playback_mode": playback_mode,
             "estimated_api_calls": {
                 "audio_analysis": planned_total,
                 "music_to_story_llm": 0,
@@ -289,3 +306,20 @@ def _validate_scene_ready(fragment: StoryFragment, *, require_image: bool) -> No
         raise RuntimeError(
             f"Story scene {fragment.id} has no usable image. Processing/audio were kept waiting instead of starting blank."
         )
+
+
+def _processing_visible_path(container_path: Path) -> str:
+    import os
+
+    host_workspace = os.environ.get("BARD_HOST_WORKSPACE")
+    container_workspace = Path(os.environ.get("BARD_CONTAINER_WORKSPACE", "/workspace"))
+    if not host_workspace:
+        return container_path.as_posix()
+    try:
+        relative = container_path.resolve().relative_to(container_workspace.resolve())
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Processing audio {container_path} is not inside mounted workspace {container_workspace}."
+        ) from exc
+    host_root = host_workspace.replace("\\", "/").rstrip("/")
+    return f"{host_root}/{relative.as_posix()}"

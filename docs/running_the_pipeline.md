@@ -2,6 +2,8 @@
 
 This is the canonical command guide for the current hybrid pipeline.
 
+For the no-venv Docker Desktop workflow, see [docker.md](docker.md).
+
 ## Terminal Setup
 
 Open PowerShell in the repository:
@@ -94,6 +96,7 @@ Inspect `music_segments.json`, `story.json`, and `audio_chunks/` in that output 
 | `--image-provider replicate` | Optional paid Replicate/FLUX experiment requiring its API token. |
 | `--max-image-assets 3` | Maximum images per scene. Imagen cost scales directly with this value. |
 | `--startup-delay 1.5` | Extra delay before Processing primes scene one. |
+| `--playback python` | Local default. Use `processing` when Python runs inside Docker Desktop. |
 | `--send-osc` | Sends data to Processing and plays the source audio. |
 | `--out-dir PATH` | Output directory. Use a new directory for each cloud run. |
 

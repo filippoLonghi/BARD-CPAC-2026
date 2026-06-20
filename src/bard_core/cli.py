@@ -67,6 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Seconds to let Processing ingest the first complete scene before audio starts.",
     )
+    sequential.add_argument(
+        "--playback",
+        choices=["python", "processing"],
+        default="python",
+        help="Play audio with local Python or inside host Processing (required for Docker Desktop).",
+    )
     _add_story_style_arguments(sequential)
     sequential.add_argument("--generate-images", action="store_true")
     sequential.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
@@ -133,6 +139,7 @@ def main(argv: list[str] | None = None) -> None:
             words_per_fragment=args.words_per_fragment,
             music_window_s=args.music_window_seconds,
             startup_delay_s=args.startup_delay,
+            playback_mode=args.playback,
             generate_images=args.generate_images,
             image_provider=args.image_provider,
             max_image_assets=args.max_image_assets,

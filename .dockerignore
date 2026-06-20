@@ -12,6 +12,7 @@ secrets
 *.wav
 *.flac
 *.m4a
+*.ogg
 temp_voice.mp3
 full_story.txt
 story.json

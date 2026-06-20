@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import threading
 import time
+from typing import Callable
 
 from ..contracts import StoryFragment
 
@@ -17,6 +18,8 @@ class ProcessingOscStream:
         slide_duration_s: float,
         include_images: bool,
         ready_port: int = 5007,
+        ready_bind_host: str = "127.0.0.1",
+        path_mapper: Callable[[Path], str] | None = None,
     ) -> None:
         try:
             from pythonosc import udp_client
@@ -26,6 +29,8 @@ class ProcessingOscStream:
         self.slide_duration_s = slide_duration_s
         self.include_images = include_images
         self.ready_port = ready_port
+        self.ready_bind_host = ready_bind_host
+        self.path_mapper = path_mapper
         self.started = False
 
     def start(self) -> None:
@@ -38,7 +43,7 @@ class ProcessingOscStream:
         time.sleep(0.03)
         self.client.send_message("/keywords", [int(fragment.id), *fragment.keywords])
         if self.include_images:
-            _send_fragment_images(self.client, fragment)
+            _send_fragment_images(self.client, fragment, self.path_mapper)
         if final:
             self.client.send_message("/finish", [])
 
@@ -49,6 +54,9 @@ class ProcessingOscStream:
 
     def settle(self, delay_s: float) -> None:
         time.sleep(max(0.0, delay_s))
+
+    def set_processing_audio(self, audio_path: str) -> None:
+        self.client.send_message("/audio", [audio_path])
 
     def await_ready(self, timeout_s: float) -> None:
         self._await_response("/prepare", "/ready", timeout_s)
@@ -66,7 +74,7 @@ class ProcessingOscStream:
         receiver = dispatcher.Dispatcher()
         receiver.map(response_address, lambda *_: ready.set())
         try:
-            server = osc_server.ThreadingOSCUDPServer(("127.0.0.1", self.ready_port), receiver)
+            server = osc_server.ThreadingOSCUDPServer((self.ready_bind_host, self.ready_port), receiver)
         except OSError as exc:
             raise RuntimeError(f"Cannot open Processing readiness port {self.ready_port}: {exc}") from exc
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -120,7 +128,11 @@ def send_fragments_to_processing(
         playback.wait()
 
 
-def _send_fragment_images(client, fragment: StoryFragment) -> None:
+def _send_fragment_images(
+    client,
+    fragment: StoryFragment,
+    path_mapper: Callable[[Path], str] | None = None,
+) -> None:
     for layer_index, asset in enumerate(fragment.image_assets):
         if not asset.local_path:
             continue
@@ -129,7 +141,12 @@ def _send_fragment_images(client, fragment: StoryFragment) -> None:
             continue
         client.send_message(
             "/image",
-            [int(fragment.id), int(layer_index), asset.role or "background", local_path.as_posix()],
+            [
+                int(fragment.id),
+                int(layer_index),
+                asset.role or "background",
+                path_mapper(local_path) if path_mapper else local_path.as_posix(),
+            ],
         )
         time.sleep(0.03)
 

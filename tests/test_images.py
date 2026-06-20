@@ -51,6 +51,7 @@ def test_settings(tmp_path: Path) -> BardSettings:
         osc_host="127.0.0.1",
         osc_port=5005,
         osc_ready_port=5007,
+        osc_ready_bind_host="127.0.0.1",
         processing_ready_timeout_s=8,
         default_chunk_s=30,
         default_wpm=180,
