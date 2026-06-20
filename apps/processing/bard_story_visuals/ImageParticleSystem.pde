@@ -2,7 +2,7 @@ class ImageParticleSystem {
   final int maxParticles = 12000;
   ArrayList<PixelParticle> particles = new ArrayList<PixelParticle>();
   float displayAlpha = 255;
-  float revealAtSeconds = 0;
+  float revealAtSeconds = 0; //tolgo?
 
   void loadAndConvert(String path, float rx, float ry, float rw, float rh, String role) {
     PImage img = loadImage(path);
@@ -10,7 +10,7 @@ class ImageParticleSystem {
 
     boolean keepDarkPixels = role.equals("background");
     displayAlpha = role.equals("background") ? 125 : (role.equals("symbol") ? 215 : 255);
-    img.resize(150, 0);
+    img.resize(400, 0);
     img.loadPixels();
     int sampleStep = max(1, ceil(sqrt((img.width * img.height) / (float)maxParticles)));
 
@@ -50,7 +50,7 @@ class ImageParticleSystem {
   }
 
   void updateAndDisplay(float chaos) {
-    if (performanceElapsedSeconds() < revealAtSeconds) return;
+    //if (performanceElapsedSeconds() < revealAtSeconds) return;
     for (PixelParticle particle : particles) {
       particle.update(chaos);
       particle.display(displayAlpha);
