@@ -10,7 +10,7 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
   boolean started = false;
   boolean assembled = false;
   
-  int flightBufferMs = 1500; // stima di tempo che ha l'ultima parola per sistemarsi così che possa stare stabile per il stableMs
+  int flightBufferMs = 2000; // stima di tempo che ha l'ultima parola per sistemarsi così che possa stare stabile per il stableMs
 
   SentenceDisplay(String sentence, int sceneStart, int startOffsetMs, int assemblyOffsetMs, int endOffsetMs, int layoutIndex) {
     sceneStartedAt = sceneStart;
