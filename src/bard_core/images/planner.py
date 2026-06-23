@@ -39,7 +39,7 @@ def normalize_asset(asset: ImageAsset) -> ImageAsset:
 def default_negative_prompt() -> str:
     return (
         "text, letters, watermark, logo, photorealistic, extra limbs, distorted anatomy, musical instruments, "
-        "horror, gore, fangs, demonic face, graphic menace"
+        "horror, gore, fangs, demonic face, graphic menace, border, frame, white border, black border, margin, passepartout"
     )
 
 
