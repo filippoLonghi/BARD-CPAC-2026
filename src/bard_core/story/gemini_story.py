@@ -287,7 +287,8 @@ Rules:
     _stabilize_image_assets(assets, bible)
     fragment = StoryFragment(
         id=segment.id,
-        mood=_clean(parsed.get("mood") or segment.mood_hint or "CALM").upper(),
+        #mood=_clean(parsed.get("mood") or segment.mood_hint or "CALM").upper(),
+        mood=_clean(parsed.get("mood")).upper(),
         text=text,
         music_prompt=" | ".join(item.music_prompt for item in timeline),
         start_s=timeline[0].start_s,
