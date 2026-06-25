@@ -202,7 +202,9 @@ def generate_story_fragment_with_gemini(
             "direction": item.story_direction,
             "event": item.suggested_event,
             "motion": item.visual_motion,
+            "mood": item.mood_hint,
             "color": item.color_direction,
+            "suggested_event": item.suggested_event,
         }
         for item in timeline
     ]

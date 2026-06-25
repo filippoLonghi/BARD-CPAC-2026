@@ -6,8 +6,8 @@ from typing import Any
 import json
 
 
-MOOD_LABELS = ["ENERGETIC", "SOLO", "CALM", "DEEP", "DISSONANT", "ANXIOUS"]
 
+MOOD_LABELS: list[str] = [ "DARK", "CALM", "ANXIOUS", "DENSE", "RISING TENSION", "RELEASE", "BRIGHT", "SPARSE", ]
 
 @dataclass
 class ImageAsset:
