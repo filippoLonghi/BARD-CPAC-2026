@@ -29,7 +29,18 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
     
     float x = column == 0 ? width * 0.08f : width * 0.52f;
     x += random(-width * 0.025f, width * 0.025f);
-    float y = height * (0.18f + row * 0.25f) + random(-24, 24);
+    float y = height * (0.18f + row * 0.25f) + random(-20, 20); //cambiato random da 24 a 20
+    
+    if (x > width * 0.35f && y > height * 0.3f) {
+      x = x - (width * 0.50f); 
+      
+      if (x < width * 0.05f) {
+        x = width * 0.05f; 
+      }
+    }
+    if (y > height*0.75) {
+      y =- (height*0.1);
+    }
     
     float lineX = x;
     float lineY = y;

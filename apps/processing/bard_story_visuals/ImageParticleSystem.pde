@@ -68,13 +68,24 @@ class ImageParticleSystem {
   float displayAlpha = 255;
 
   void loadAndConvert(String path, float rx, float ry, float rw, float rh, String role) {
+    if (role.equals("symbol")) { // anna decide di pulire questa cosa per dare ordine 
+      return; 
+    }
+    
     PImage img = loadImage(path);
     if (img == null) return;
+    
+    img = autoCropFrames(img);
 
     boolean isBackground = role.equals("background");
     displayAlpha = isBackground ? 125 : (role.equals("symbol") ? 215 : 255);
     
-    img.resize(700, 0);
+    if (isBackground) {
+      img.resize(800, 0); // Più risoluzione per spalmare meglio i punti
+    } else {
+      img.resize(500, 0);
+    }
+    
     img.loadPixels();
     
     // Applichiamo la bacchetta magica SOLO a soggetti e simboli
@@ -118,7 +129,7 @@ class ImageParticleSystem {
         } else {
           // Per soggetti e simboli usiamo il risultato della bacchetta magica! 
           // (E aggiungiamo un controllo di sicurezza brightness > 8 per piccoli rimasugli di ombre ai bordi)
-          if (alpha(pixelColor) > 10 && !bgMask[idx] && brightness(pixelColor) > 8) {
+          if (alpha(pixelColor) > 10 && !bgMask[idx]) {
             targets.add(new PVector(startX + x * sc, startY + y * sc));
             colors.add(pixelColor);
           }

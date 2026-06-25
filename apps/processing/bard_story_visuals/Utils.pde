@@ -92,3 +92,69 @@ boolean[] calculateFloodFillMask(PImage img) {
   
   return bgMask;
 }
+
+
+
+// TAGLIERINA GEOMETRICA PER CORNICI AI BORDI
+PImage autoCropFrames(PImage img) {
+  img.loadPixels();
+  int top = 0;
+  int bottom = img.height - 1;
+  int left = 0;
+  int right = img.width - 1;
+
+  for (int y = 0; y < img.height; y++) {
+    if (!isRowBackground(img, y)) {
+      top = y;
+      break;
+    }
+  }
+  for (int y = img.height - 1; y >= top; y--) {
+    if (!isRowBackground(img, y)) {
+      bottom = y;
+      break;
+    }
+  }
+  for (int x = 0; x < img.width; x++) {
+    if (!isColBackground(img, x, top, bottom)) {
+      left = x;
+      break;
+    }
+  }
+  for (int x = img.width - 1; x >= left; x--) {
+    if (!isColBackground(img, x, top, bottom)) {
+      right = x;
+      break;
+    }
+  }
+
+  int newW = right - left + 1;
+  int newH = bottom - top + 1;
+
+  if (newW <= 10 || newH <= 10) return img;
+  if (newW == img.width && newH == img.height) return img;
+
+  return img.get(left, top, newW, newH);
+}
+
+// --- Funzioni assistenti per controllare righe e colonne ---
+boolean isRowBackground(PImage img, int y) {
+  int bgCount = 0;
+  for (int x = 0; x < img.width; x++) {
+    float b = brightness(img.pixels[x + y * img.width]);
+    if (b < 20 || b > 230) bgCount++;
+  }
+  // Se il 95% della riga è nero profondo o bianco puro, è una cornice!
+  return bgCount > img.width * 0.95;
+}
+
+boolean isColBackground(PImage img, int x, int top, int bottom) {
+  int bgCount = 0;
+  int h = bottom - top + 1;
+  for (int y = top; y <= bottom; y++) {
+    float b = brightness(img.pixels[x + y * img.width]);
+    if (b < 20 || b > 230) bgCount++;
+  }
+  // Se il 95% della colonna è nero profondo o bianco puro, è una cornice!
+  return bgCount > h * 0.95;
+}
