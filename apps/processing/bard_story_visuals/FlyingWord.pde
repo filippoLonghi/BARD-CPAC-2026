@@ -69,7 +69,7 @@ class FlyingWord {
   }
 
   void displayBase(color cBase, color cAccent) {
-    textSize(fontSize);
+    textFont(myFont, fontSize);
     pushMatrix();
     translate(pos.x, pos.y);
     rotate(angle); ///???
@@ -83,6 +83,7 @@ class FlyingWord {
   }
 
   void displayGlowingOnly(color cGlow) {
+    textFont(myFont, fontSize);
     textSize(fontSize);
     pushMatrix();
     translate(pos.x, pos.y);

@@ -4,34 +4,47 @@ import oscP5.*;
 import netP5.*;
 import java.net.URLDecoder; // decoder per i caratteri accentati 
 
+// variabili di rete
 OscP5 oscP5;
 int port = 5005;
 NetAddress pythonVoiceLocation;
 NetAddress pythonReadyLocation;
 
+// variabili di schermata immagini
 float imageAreaRatio = 0.55;
 float imageMarginX = 0.2;
 float imageMarginTop = 0.13;
 float textAreaPad = 32;
 
-int fontSize = 20;
+float imgX, imgY, imgW, imgH;
+
+// variabili dei font
+float fontPercent = 0.2; //così il font dovrebbe essere sempre della stessa proporzione in altezza 
+int fontSize = int(height*fontPercent);
 float leading = fontSize * 1.45;
 PFont myFont;
+PFont myTitle;
 String fullText = "";
 
+// variabili per l'animazione della schermata iniziale
+int introCharIndex = 0;
+int introLastTime = 0;
+boolean introWaiting = false;
+
+// oggetti che ci servono
 WordsSystem wordsystem = new WordsSystem();
 ArrayList<BgParticle> bgParticles = new ArrayList<BgParticle>();
 MoodManager moodManager;
 Nebula nebula;
 HashMap<String, ImageParticleSystem> imgSystems = new HashMap<String, ImageParticleSystem>();
 
-float imgX, imgY, imgW, imgH;
-
 OscHandler oscHandler;
 StoryDirector director;
 
+// variabili dell'audoi player
 String processingAudioPath = "";
 ProcessingAudioPlayer processingAudioPlayer = new ProcessingAudioPlayer();
+
 
 
 // ---------- SETUP -------------
@@ -42,7 +55,8 @@ void setup() {
   pythonVoiceLocation = new NetAddress("127.0.0.1", 5006);
   pythonReadyLocation = new NetAddress("127.0.0.1", 5007);
   
-  myFont = createFont("Arial", fontSize, true, buildItalianCharset());
+  myFont = createFont("AlteHaasGrotesk", fontSize, true, buildItalianCharset()); //ProcessingSans-Bold AlteHaasGrotesk
+  myTitle = createFont("Georgia", fontSize*2.5, true);
   textFont(myFont);
   textSize(fontSize);
   textAlign(LEFT, CENTER);
@@ -83,10 +97,7 @@ void draw() {
   if (!director.isPlaying) {
     fill(255, 220);
     textAlign(CENTER, CENTER);
-    textSize(fontSize + 22);
-    text("BARD", width / 2.0, height / 2.0 - 36);
-    textSize(fontSize - 8);
-    text("I'll tell you a story...", width / 2.0, height / 2.0 + 42);
+    drawIntroScreen("BARD", myTitle, "I'll tell you a story...", myFont);
     textAlign(LEFT, CENTER);
     return;
   }
@@ -97,10 +108,10 @@ void draw() {
   if (director.isOutro) { //se è finito fa la schermata di fine 
     fill(currentVals.textColor); // Usa il colore di testo armonioso del mood
     textAlign(CENTER, CENTER);
-    textSize(fontSize + 14);
+    textFont(myTitle);
     text("The End", width / 2.0, height / 2.0);
     textAlign(LEFT, CENTER);
-    
+    textFont(myFont);
   } else { // scorre il tempo e controlla se c'è da cambiare
     updateCurrentSegmentImage(currentVals);
     wordsystem.updateWordLogic();

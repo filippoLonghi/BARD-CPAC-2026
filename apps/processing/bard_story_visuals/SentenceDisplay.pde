@@ -21,7 +21,7 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
   }
 
   void layoutSentence(String sentence, int layoutIndex) {
-    textSize(fontSize);
+    textFont(myFont, fontSize);
     float boxW = width * random(0.34f, 0.50f);
     
     int column = layoutIndex % 2;
@@ -38,8 +38,8 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
         x = width * 0.05f; 
       }
     }
-    if (y > height*0.75) {
-      y =- (height*0.1);
+    if (y > height*0.7) {
+      y = (height*0.6);
     }
     
     float lineX = x;
@@ -98,6 +98,7 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
 
   void draw(Atmosphere atmosphere) {
     if (!started) return;
+    textFont(myFont, fontSize);
     for (FlyingWord word : words) {
       word.opacity = opacity;
       if (word.active) word.displayBase(atmosphere.textColor, atmosphere.glowColor);

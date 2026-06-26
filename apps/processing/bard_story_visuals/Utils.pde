@@ -158,3 +158,50 @@ boolean isColBackground(PImage img, int x, int top, int bottom) {
   // Se il 95% della colonna è nero profondo o bianco puro, è una cornice!
   return bgCount > h * 0.95;
 }
+
+
+
+// funzione per disegnare il titolo con animazione macchina da scrivere
+void drawIntroScreen(String introTitle, PFont fontT, String introSubtitle, PFont fontS) {
+  int totalChars = introTitle.length() + introSubtitle.length();
+  int now = millis();
+  
+  int typingSpeed = 90;  // Millisecondi di attesa tra una lettera e l'altra
+  int waitTime = 2000;   // Pausa a fine frase (2000 ms = 2 secondi)
+  
+  if (introWaiting) {
+    if (now - introLastTime > waitTime) {
+      introWaiting = false;
+      introCharIndex = 0; // Tempo scaduto: resetta tutto e ricomincia!
+      introLastTime = now;
+    }
+  } else {
+    if (now - introLastTime > typingSpeed) {
+      introCharIndex++;
+      if (introCharIndex >= totalChars) {
+        introCharIndex = totalChars;
+        introWaiting = true; // Ha finito di scrivere, inizia i 2 secondi di attesa
+      }
+      introLastTime = now;
+    }
+  }
+  
+  textAlign(CENTER, CENTER);
+  fill(255); // Colore del testo (bianco)
+  
+  // titolo
+  int titleChars = min(introCharIndex, introTitle.length());
+  String currentTitle = introTitle.substring(0, titleChars);
+  
+  textFont(fontT);
+  if (introSubtitle == "") {
+    text(currentTitle, width / 2, height / 2);
+  } else   text(currentTitle, width / 2, height / 2 - 40);
+  
+  // finito il titolo, sottotiolo
+  int subChars = max(0, introCharIndex - introTitle.length());
+  String currentSubtitle = introSubtitle.substring(0, subChars);
+  
+  textFont(fontS);
+  text(currentSubtitle, width / 2, height / 2 + 40);
+}
