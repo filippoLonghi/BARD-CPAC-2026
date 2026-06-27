@@ -15,6 +15,7 @@ src/bard_core/audio/chunks.py
 src/bard_core/audio/clap_provider.py
 src/bard_core/audio/gemini_provider.py
 src/bard_core/images/__init__.py
+src/bard_core/images/background_removal.py
 src/bard_core/images/generator.py
 src/bard_core/images/http_utils.py
 src/bard_core/images/imagen_provider.py
@@ -43,4 +44,5 @@ src/bard_cpac.egg-info/requires.txt
 src/bard_cpac.egg-info/top_level.txt
 tests/test_images.py
 tests/test_sequential.py
+tests/test_story_pipeline_fixes.py
 tests/test_utils.py

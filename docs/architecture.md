@@ -19,7 +19,7 @@ The new code lives in `src/bard_core`.
 - `story/local_mistral.py`: reuses the wrapped hackathon local Mistral story generator.
 - `audio/chunks.py`: saves independently analyzable WAV windows for sequential execution.
 - `story/music_translation.py`: musical observations to music-free dramatic directions.
-- `story/gemini_story.py`: persistent fairy-tale bible, continuity state, and three visual assets per beat.
+- `story/gemini_story.py`: persistent symbolic-adventure bible, deterministic audio-selected world profile, continuity state, and two visual assets per beat.
 - `pipeline_sequential.py`: uploaded-file stream simulation and planned-duration live foundation.
 - `images/`: optional image-keyframe providers for Replicate FLUX, Vertex Imagen, and Openverse retrieval.
 - `transport/osc_sender.py`: sends `/config/duration`, `/segment`, optional `/image`, and `/start` to Processing.
@@ -78,8 +78,11 @@ Python sends:
 Allowed moods:
 
 ```text
-ENERGETIC, SOLO, CALM, DEEP, DISSONANT, ANXIOUS
+DARK, CALM, ANXIOUS, DENSE, RISING TENSION, RELEASE, BRIGHT, SPARSE
 ```
+
+The same list must appear in `src/bard_core/contracts.py::MOOD_LABELS` and Processing
+`MoodManager.pde` with no aliases.
 
 See [pipeline_data.md](pipeline_data.md) for concrete JSON examples and field ownership.
 
@@ -109,11 +112,14 @@ Image generation is now available as an optional provider stage:
 ```text
 StoryFragment.image_assets
 -> replicate | imagen | openverse
+-> Python subject cutout to transparent PNG when generated
 -> runs/<run_id>/images/
 -> /image OSC paths
 -> Processing live composition
 ```
 
+Current image roles are only `background` and `subject`; symbol images are intentionally disabled.
+The Processing visual layout, timing, and stale-image persistence are intentionally unchanged.
 For the final performance, keep a procedural fallback live locally while cloud-generated assets arrive with a deliberate delay.
 
 Normal story runs keep `image_provider=none`. Pass `--generate-images --image-provider openverse|replicate|imagen`

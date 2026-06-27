@@ -57,7 +57,7 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --story-level early-reader `
   --generate-images `
   --image-provider openverse `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --send-osc `
   --out-dir runs\arabesque-complete
 ```
@@ -114,13 +114,21 @@ in changing screen positions; internal fragment boundaries only control mood and
 
 The default hybrid plan keeps approximately 15-second timestamped music observations but groups them
 into approximately 60-second story/image scenes. This preserves small musical changes without paying
-for a story call and three image calls for every observation.
+for a story call and two image calls for every observation.
+
+The story bible now selects one deterministic world profile from the first available music observations.
+The same descriptor chooses the same world, while different descriptors can move the story into places
+such as a clockwork city, radio tower, moon archive, storm airship, festival harbor, or medieval citadel.
+The Processing layout, story timing, WPM, scene duration, and stale-image persistence are intentionally unchanged.
 
 Allowed moods:
 
 ```text
-ENERGETIC, SOLO, CALM, DEEP, DISSONANT, ANXIOUS
+DARK, CALM, ANXIOUS, DENSE, RISING TENSION, RELEASE, BRIGHT, SPARSE
 ```
+
+This list is shared exactly between `src/bard_core/contracts.py` and Processing `MoodManager.pde`.
+Invalid Python moods normalize to `CALM` before OSC.
 
 ## Optional Local Prototype Path
 
@@ -152,6 +160,18 @@ python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-p
 ```
 
 See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, output files, and debugging.
+
+Current generated image assets are only `background` and `subject`. Symbol images are intentionally
+disabled for now. Generated subject assets are cut out in Python into transparent PNGs before Processing
+receives them; Processing uses alpha pixels for cutouts and only falls back to color flood-fill for
+non-alpha legacy images.
+
+## Docker Quick Check
+
+```powershell
+docker compose build
+docker compose run --rm bard --help
+```
 
 ## Documents
 

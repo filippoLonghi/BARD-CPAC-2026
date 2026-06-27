@@ -6,6 +6,7 @@ import re
 
 from ..config import BardSettings
 from ..contracts import ImageAsset, StoryFragment
+from .background_removal import postprocess_generated_image_asset
 from .imagen_provider import generate_imagen_image
 from .openverse_provider import retrieve_openverse_image
 from .planner import ensure_fragment_image_assets
@@ -101,7 +102,7 @@ def model_for_provider(provider: str, settings: BardSettings) -> str:
     if provider == "replicate":
         return settings.replicate_model
     if provider == "imagen":
-        return settings.imagen_model
+        return settings.image_model
     if provider == "openverse":
         return "openverse-search"
     return provider
@@ -109,9 +110,11 @@ def model_for_provider(provider: str, settings: BardSettings) -> str:
 
 def _generate_one(provider: str, asset: ImageAsset, output_base_path: Path, settings: BardSettings) -> ImageAsset:
     if provider == "replicate":
-        return generate_replicate_image(asset, output_base_path, settings)
+        generated = generate_replicate_image(asset, output_base_path, settings)
+        return postprocess_generated_image_asset(generated, settings)
     if provider == "imagen":
-        return generate_imagen_image(asset, output_base_path, settings)
+        generated = generate_imagen_image(asset, output_base_path, settings)
+        return postprocess_generated_image_asset(generated, settings)
     if provider == "openverse":
         return retrieve_openverse_image(asset, output_base_path, settings)
     raise ValueError(f"Unsupported image provider: {provider}")

@@ -4,7 +4,7 @@ import random
 import sys
 
 from ..config import BardSettings
-from ..contracts import MusicSegment, StoryFragment
+from ..contracts import MusicSegment, StoryFragment, normalize_mood_label
 
 
 def generate_story_with_local_mistral(
@@ -64,7 +64,7 @@ def generate_story_with_local_mistral(
         fragments.append(
             StoryFragment(
                 id=seg.id,
-                mood=mood,
+                mood=normalize_mood_label(mood),
                 text=text,
                 music_prompt=seg.music_prompt,
                 start_s=seg.start_s,

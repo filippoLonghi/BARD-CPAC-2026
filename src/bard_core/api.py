@@ -29,7 +29,7 @@ async def create_run_sync(
     story_provider: str = Query("vertex", pattern="^(local|mistral|vertex|gemini)$"),
     generate_images: bool = Query(False),
     image_provider: str = Query("none", pattern="^(none|replicate|imagen|openverse)$"),
-    max_image_assets: int = Query(3, ge=1, le=6),
+    max_image_assets: int = Query(2, ge=1, le=2),
 ) -> dict:
     settings = BardSettings.from_env()
     work_dir = Path(tempfile.mkdtemp(prefix="bard-api-"))

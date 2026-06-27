@@ -84,7 +84,7 @@ def translate_music_to_story_cues(
         for segment in segments
     ]
     prompt = f"""
-Convert these musical observations into dramatic directions for a coherent fairy tale for children aged 6-10.
+Convert these musical observations into dramatic directions for a coherent symbolic adventure story for children aged 6-10.
 Return exactly one item for every input id and JSON only.
 
 The output is an intermediate story canvas. It must never mention music, audio, tempo, rhythm, harmony,

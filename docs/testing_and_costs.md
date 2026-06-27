@@ -14,8 +14,14 @@ $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[api,cloud]"
+python -m pip install -e ".[api,cloud,dev]"
 gcloud auth application-default login
+```
+
+The reproducible Docker test command is:
+
+```powershell
+docker compose run --rm --entrypoint python bard -m pytest
 ```
 
 Install Processing 4 and `oscP5`, then open:
@@ -40,15 +46,15 @@ The defaults are 15-second musical observations grouped into 60-second story sce
 | Gemini audio calls | 19 | 5 |
 | Music-to-story LLM calls | 19 | 0 (local mapping) |
 | Story calls, including bible | 20 | 6 |
-| Images at three per story scene | 57 | 15 |
+| Images at two per story scene | 38 | 10 |
 
 At the documented Imagen 4 Fast price of `$0.02/image`, the image portion falls from about `$1.14`
-to `$0.30`. Openverse remains `$0` for image API usage. As of June 14, 2026, Gemini 2.5 Flash
+to `$0.20`. Openverse remains `$0` for image API usage. As of June 14, 2026, Gemini 2.5 Flash
 standard pricing lists audio input at `$1/1M audio tokens`, ordinary text/image/video input at
 `$0.30/1M tokens`, and text output at `$2.50/1M tokens`. Grouping does not remove the cost of
 listening to the complete recording, but it removes repeated prompt/output overhead and 19 separate
 music-to-story LLM calls. A practical Arabesque hybrid run should normally keep Gemini analysis and
-story cost in the low cents; allow roughly `$0.02-$0.06`, then add `$0.30` for 15 Imagen Fast images.
+story cost in the low cents; allow roughly `$0.02-$0.06`, then add `$0.20` for 10 Imagen Fast images.
 Every run writes planned counts under `metadata.estimated_api_calls`.
 
 Pricing source: [Google Cloud generative AI pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing).
@@ -86,7 +92,7 @@ The filename `sad_walk_komiku.ogg` is neutral on purpose. Its source title says 
 piano”, but that title is not evidence that a piano is audible. BARD must infer instruments from each
 chunk and may correctly return `uncertain`.
 
-## Short Imagen Test: Three Scenes, Nine Images
+## Short Imagen Test: Three Scenes, Six Images
 
 Open Processing first, then run:
 
@@ -97,15 +103,15 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --words-per-fragment 80 `
   --generate-images `
   --image-provider imagen `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --send-osc `
   --out-dir runs\imagen-three-fragments
 ```
 
 This performs 3 grouped audio calls, no music-to-story LLM calls, 1 story-bible call, 3 story-scene
-calls, and 9 Imagen calls. An extra repair call occurs only if a story scene materially exceeds its
-word budget. The image portion is about `$0.18` at `$0.02/image`; allow roughly
-`$0.19-$0.23` total depending on Gemini input/output size.
+calls, and 6 Imagen calls. An extra repair call occurs only if a story scene materially exceeds its
+word budget. The image portion is about `$0.12` at `$0.02/image`; allow roughly
+`$0.13-$0.17` total depending on Gemini input/output size.
 
 ## Long Coherence Test With Openverse
 
@@ -120,18 +126,18 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --story-level children `
   --generate-images `
   --image-provider openverse `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --send-osc `
   --out-dir runs\schubert-long-openverse
 ```
 
-This produces 11 story fragments and plans 33 retrieved images. Openverse has no API charge, although
+This produces 11 story fragments and plans 22 retrieved images. Openverse has no API charge, although
 some searches may fail or be rate-limited. Gemini cost should usually remain in the low cents; budget
 about `$0.03-$0.08` because sequential mode makes several structured calls per fragment.
 
-For normal runs, omit both `--chunk-seconds` and `--fragments`. Use `--music-window-seconds` only
-when testing how finely musical changes are detected. Story word count is derived from each longer
-scene's exact duration, `--reading-wpm`, and `--text-coverage`.
+For normal runs, omit `--chunk-seconds`, `--fragments`, and `--music-window-seconds`. Automatic
+balanced splitting chooses story fragments near the configured target, and story word count is
+derived from each fragment's exact duration and `BARD_STORY_WPM` / `--story-wpm`.
 
 Italian early-reader test using only Openverse for images:
 
@@ -141,11 +147,10 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --fragments 3 `
   --story-language Italian `
   --story-level early-reader `
-  --reading-wpm 105 `
-  --text-coverage 0.70 `
+  --story-wpm 70 `
   --generate-images `
   --image-provider openverse `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --send-osc `
   --out-dir runs\italian-openverse
 ```
@@ -193,9 +198,9 @@ Examples:
 
 | Run | Imagen only | Typical total |
 |---|---:|---:|
-| 3 fragments x 3 images | `$0.18` | `$0.19-$0.23` |
-| 5 fragments x 3 images | `$0.30` | `$0.31-$0.36` |
-| 11 fragments x 3 images | `$0.66` | `$0.69-$0.78` |
+| 3 fragments x 2 images | `$0.12` | `$0.13-$0.17` |
+| 5 fragments x 2 images | `$0.20` | `$0.21-$0.26` |
+| 11 fragments x 2 images | `$0.44` | `$0.47-$0.56` |
 | 11 fragments with Openverse | `$0` | `$0.03-$0.08` |
 
 Processing and local WAV splitting cost nothing. Storage is negligible for these tests. Official
@@ -215,6 +220,7 @@ BARD_GCP_PROJECT_ID=NEW_PROJECT_ID
 GOOGLE_CLOUD_PROJECT=NEW_PROJECT_ID
 BARD_STORAGE_BUCKET=NEW_PROJECT_ID-bard-artifacts
 BARD_GCP_LOCATION=europe-west1
+BARD_IMAGE_LOCATION=europe-west1
 BARD_IMAGEN_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=C:\...\new-project-key.json
 ```

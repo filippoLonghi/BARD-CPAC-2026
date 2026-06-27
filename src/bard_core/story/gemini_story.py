@@ -1,12 +1,115 @@
 from __future__ import annotations
 
+import hashlib
 import json
-import random
 from typing import Any
 
 from ..config import BardSettings
-from ..contracts import ImageAsset, MOOD_LABELS, MusicSegment, StoryFragment
+from ..contracts import (
+    IMAGE_ASSET_ROLES,
+    ImageAsset,
+    MOOD_LABELS,
+    MusicSegment,
+    StoryFragment,
+    normalize_mood_label,
+    order_image_assets,
+)
 from ..utils import extract_json
+
+
+WORLD_PROFILES: dict[str, dict[str, str]] = {
+    "medieval_citadel": {
+        "setting": "a medieval citadel of bridges, bells, banners, stone gates, and hidden workshops",
+        "cast_style": "non-human guardians, talking shields, bell spirits, clock scribes, carts, masks, and animated tools",
+        "visual_palette": "stone grey, banner red, tarnished gold, torch amber, rain-washed blue",
+        "name_style": "short names that sound carved, heraldic, or bell-like",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "cyberpunk_rooftops": {
+        "setting": "a bright future city of rooftop gardens, neon bridges, signal rails, rain collectors, and friendly drones",
+        "cast_style": "robots, courier kites, signal spirits, living billboards, repair machines, masks, and gentle vehicles",
+        "visual_palette": "electric cyan, hot pink, rain black, chrome silver, soft yellow windows",
+        "name_style": "compact names with sparks, circuits, signs, and city sounds",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "underwater_ruins": {
+        "setting": "underwater ruins with bubble libraries, coral gates, quiet statues, pearl lamps, and sunken stairways",
+        "cast_style": "current spirits, living statues, shell machines, tide tools, masks, and lantern-shaped devices",
+        "visual_palette": "deep turquoise, sea glass green, pearl white, shadow violet, soft gold",
+        "name_style": "flowing names with tides, shells, currents, bells, and ancient stone sounds",
+        "avoid": "land woodland, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "moon_archive": {
+        "setting": "a moon archive of silver shelves, crater courtyards, quiet telescopes, star maps, and floating paper rooms",
+        "cast_style": "lunar librarians, animated maps, telescope spirits, paper machines, masks, and gentle moon rovers",
+        "visual_palette": "silver, ink blue, soft white, violet shadow, dusty gold",
+        "name_style": "quiet names that sound lunar, archival, starry, or written in silver ink",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "desert_caravan": {
+        "setting": "a desert caravan crossing singing dunes, lantern tents, glass wells, mirrored rocks, and star trails",
+        "cast_style": "sand spirits, walking tents, lantern guardians, map masks, caravan carts, animated tools, and wind machines",
+        "visual_palette": "saffron, lapis blue, copper, sand gold, night indigo",
+        "name_style": "warm names with wind, lantern, star, glass, and caravan sounds",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "storm_airship": {
+        "setting": "a storm airship route above cloud canyons, thunder towers, sail balloons, and lightning kitchens",
+        "cast_style": "airships, cloud spirits, storm tools, compass masks, engine helpers, and animated sails",
+        "visual_palette": "storm purple, lightning white, brass, cloud grey, emergency red",
+        "name_style": "bold names with wind, thunder, sails, compasses, and engine sounds",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "clockwork_city": {
+        "setting": "a clockwork city of gears, towers, wind-up streets, ticking plazas, and brass observatories",
+        "cast_style": "animated tools, gear spirits, clocks, masks, small machines, and mechanical animals only if clearly clockwork",
+        "visual_palette": "brass, teal patina, ivory enamel, graphite, warm lamp glow",
+        "name_style": "precise names with clicks, chimes, numbers, and workshop sounds",
+        "avoid": "organic woodland, fairy forests, insects, foxes, rabbits, owls, and natural forest animals",
+    },
+    "volcanic_workshop": {
+        "setting": "a volcanic workshop of lava mills, basalt lifts, glowing anvils, steam pipes, and cooled-crystal paths",
+        "cast_style": "forge spirits, animated tools, furnace machines, basalt masks, carts, and gentle elemental helpers",
+        "visual_palette": "ember orange, basalt black, molten gold, smoke grey, mineral green",
+        "name_style": "sturdy names with sparks, stone, steam, tools, and forge sounds",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "polar_observatory": {
+        "setting": "a polar observatory of aurora domes, ice lenses, snow bridges, weather rooms, and star-measuring towers",
+        "cast_style": "aurora spirits, telescope machines, weather masks, animated instruments, sled-like vehicles, and ice tools",
+        "visual_palette": "aurora green, glacier blue, white, violet night, brass instrument details",
+        "name_style": "clear names with stars, ice, auroras, lenses, and north-wind sounds",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "radio_tower": {
+        "setting": "a lonely radio tower above quilted fields, cloud rooms, antenna bridges, and humming signal cabins",
+        "cast_style": "signal spirits, radio parts, living antennas, messenger balloons, static masks, and helpful machines",
+        "visual_palette": "midnight blue, copper wire, signal green, pale cloud grey, warm beacon red",
+        "name_style": "names that sound like callsigns, waves, beacons, and clear short radio words",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "sky_market": {
+        "setting": "a sky market of floating stalls, kite bridges, cloud cranes, bell balloons, and sunrise elevators",
+        "cast_style": "kite spirits, market carts, animated umbrellas, cloud machines, masks, balloons, and living signboards",
+        "visual_palette": "sunrise peach, sky blue, kite red, cream cloud, polished brass",
+        "name_style": "light names with kites, bells, markets, clouds, and morning sounds",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "festival_harbor": {
+        "setting": "a festival harbor of floating stages, lantern boats, tide bells, rope bridges, and colorful market docks",
+        "cast_style": "boats, bell spirits, lantern masks, dock machines, animated flags, and helpful floating tools",
+        "visual_palette": "lantern orange, harbor blue, flag red, mint green, pearl white",
+        "name_style": "cheerful names with bells, flags, boats, lights, and harbor calls",
+        "avoid": "woodland defaults, fairy forests, insects, foxes, rabbits, owls, and small forest animals",
+    },
+    "european_folk_tales": {
+        "setting": "a European folk-tale village of painted doors, market bells, tiled roofs, old wells, and traveling shadow stages",
+        "cast_style": "house spirits, masks, animated tools, living buildings, festival carts, bell keepers, and gentle elemental helpers",
+        "visual_palette": "painted blue, brick red, candle gold, linen white, rain grey",
+        "name_style": "short folk names with village, bell, craft, door, and road sounds",
+        "avoid": "generic enchanted woods, fairy courts, insects, foxes, rabbits, owls, and direct copies of famous tales",
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +179,7 @@ FRAGMENT_SCHEMA = {
             "items": {
                 "type": "OBJECT",
                 "properties": {
-                    "role":             {"type": "STRING", "enum": ["background", "subject", "symbol"]},
+                    "role":             {"type": "STRING", "enum": IMAGE_ASSET_ROLES},
                     "label":            {"type": "STRING"},
                     "prompt":           {"type": "STRING"},
                     "negative_prompt":  {"type": "STRING"},
@@ -161,113 +264,6 @@ _NARRATIVE_SEEDS: list[str] = [
 
 
 # ---------------------------------------------------------------------------
-# Vincoli di mondo derivati dall'audio — versione compatta
-# ---------------------------------------------------------------------------
-
-def _world_constraints_from_segments(segments: list[MusicSegment]) -> str:
-    """Deriva vincoli narrativi di mondo e protagonista dall'arco musicale.
-
-    Usa i valori numerici (provider Gemini) quando disponibili.
-    Ricade su story_energy/story_tension come proxy (provider CLAP).
-    Versione compatta: produce 3-4 righe per non saturare il contesto della bible.
-    """
-    arousals = [s.arousal for s in segments if s.arousal is not None]
-    tensions  = [s.tension  for s in segments if s.tension  is not None]
-    valences  = [s.valence  for s in segments if s.valence  is not None]
-
-    # --- arousal ---
-    if not arousals:
-        counts: dict[str, int] = {"high": 0, "medium": 0, "low": 0}
-        for s in segments:
-            e = (s.story_energy or "").lower()
-            if any(w in e for w in ("high", "urgent", "powerful", "burst", "racing", "force")):
-                counts["high"] += 1
-            elif any(w in e for w in ("low", "quiet", "gentle", "drift", "hushed", "subdued")):
-                counts["low"] += 1
-            else:
-                counts["medium"] += 1
-        dominant = max(counts, key=counts.get)
-        avg_arousal = 0.8 if dominant == "high" else (0.2 if dominant == "low" else 0.5)
-    else:
-        avg_arousal = sum(arousals) / len(arousals)
-
-    # --- tension ---
-    if not tensions:
-        tcounts: dict[str, int] = {"high": 0, "medium": 0, "low": 0}
-        for s in segments:
-            t = (s.story_tension or "").lower()
-            if any(w in t for w in ("high", "edge", "pressure", "breaking", "decisive", "wound")):
-                tcounts["high"] += 1
-            elif any(w in t for w in ("low", "ease", "calm", "clear", "free", "open")):
-                tcounts["low"] += 1
-            else:
-                tcounts["medium"] += 1
-        dominant_t = max(tcounts, key=tcounts.get)
-        avg_tension = 0.8 if dominant_t == "high" else (0.2 if dominant_t == "low" else 0.5)
-        tension_arc = "stable"
-    else:
-        avg_tension = sum(tensions) / len(tensions)
-        tension_arc = (
-            "rising"  if tensions[-1] - tensions[0] >= 0.20 else
-            "falling" if tensions[0] - tensions[-1] >= 0.20 else
-            "stable"
-        )
-
-    avg_valence = sum(valences) / len(valences) if valences else 0.0
-
-    # --- scala (arousal) ---
-    scale = (
-        "vast and in constant motion" if avg_arousal >= 0.67 else
-        "very small and enclosed"     if avg_arousal <= 0.33 else
-        "moderate with hidden depths"
-    )
-
-    # --- pericolo (tension + arc) ---
-    if avg_tension >= 0.67:
-        danger = (
-            "rising threat that must be faced directly" if tension_arc == "rising"
-            else "constant pressure from an unstoppable force"
-        )
-    elif avg_tension <= 0.33:
-        danger = "subtle internal problem that slowly becomes impossible to ignore"
-    else:
-        danger = (
-            "unstable balance tipping toward danger" if tension_arc == "rising"
-            else "uneasy equilibrium that could break either way"
-        )
-
-    # --- luce (valence) ---
-    light = (
-        "warm and bright"              if avg_valence >= 0.4  else
-        "mostly warm"                  if avg_valence >= 0.15 else
-        "dark with one point of light" if avg_valence <= -0.4 else
-        "muted and cool"               if avg_valence <= -0.15 else
-        "ambiguous, neither bright nor dark"
-    )
-
-    # --- protagonista (combinazione di tutti i valori) ---
-    if avg_tension >= 0.6 and avg_valence < 0:
-        protagonist = "something displaced or lost that must find its way back before something is permanently lost"
-    elif avg_tension <= 0.3 and avg_valence >= 0.2:
-        protagonist = "something very small that contains far more than it appears to hold"
-    elif avg_arousal >= 0.7:
-        protagonist = "something that cannot stop moving and must travel far before the problem resolves"
-    elif avg_arousal <= 0.3:
-        protagonist = "something ancient and patient that has waited a long time for this moment"
-    elif tension_arc == "rising":
-        protagonist = "something fragile that must become resilient without losing what makes it itself"
-    else:
-        protagonist = "something with a hidden quality that even it does not yet know it possesses"
-
-    return (
-        f"World: {scale}, {light}, with {danger}. "
-        f"Give it one specific physical property that makes it unlike a forest, ocean, sky, cave, or generic kingdom. "
-        f"Protagonist: {protagonist}. "
-        f"Not a mammal, bird, reptile, or humanoid. Must belong to this world and could not exist elsewhere."
-    )
-
-
-# ---------------------------------------------------------------------------
 # Bible
 # ---------------------------------------------------------------------------
 
@@ -332,23 +328,32 @@ def create_story_bible(
     # per-segmento con le stringhe lunghe dei pool — queste saturavano il payload
     # e causavano RemoteProtocolError. I dettagli per-segmento vengono inviati
     # a ciascun frammento separatamente, dove sono effettivamente necessari.
-    arc_summary       = _arc_summary_for_bible(segments)
-    narrative_seed    = random.choice(_NARRATIVE_SEEDS)
-    world_constraints = _world_constraints_from_segments(segments)
+    arc_summary = _arc_summary_for_bible(segments)
+    world_profile = choose_world_profile(segments)
+    narrative_seed = _deterministic_narrative_seed(segments)
 
     prompt = f"""
-Design a coherent original fairy tale for children aged 6-10, planned for exactly {total_segments} short parts.
+Design a coherent original symbolic adventure story for children aged 6-10, planned for exactly {total_segments} short parts.
 Return JSON only.
 
 MANDATORY WORLD AND PROTAGONIST (derived from the music — constraints, not suggestions):
-{world_constraints}
+{json.dumps(world_profile, ensure_ascii=False)}
+
+Use this world as the main setting.
+Characters must fit this cast style. Cast style: {world_profile["cast_style"]}.
+Names must fit this name style. Name style: {world_profile["name_style"]}.
+Use this palette direction for image concepts: {world_profile["visual_palette"]}.
+Avoid these defaults: {world_profile["avoid"]}.
 
 Narrative seed (shape your structural choices without stating it literally):
 "{narrative_seed}"
 
 Story language: {settings.story_language}. Reading level: {settings.story_level}.
 Use a clear protagonist, antagonist, helper, setting, problem, escalating attempts, climax, solution, and moral.
-Characters must belong to the mandatory world above and be visually distinctive.
+The protagonist, antagonist, and helper must be visually distinctive non-human symbolic characters that belong
+to the selected world: robots, machines, masks, vehicles, animated tools, signal spirits, living buildings,
+elemental helpers, house spirits, or other non-human beings that fit the profile are welcome. Do not make them
+children, human adults, fairies, or ordinary human-like people.
 Plan the definitive ending now. The antagonist needs an understandable motive.
 For protagonist_visual_identity, antagonist_visual_identity, and helper_visual_identity: one concise immutable
 English design spec — species/object type, body shape, dominant colors, distinctive markings, silhouette feature.
@@ -357,16 +362,121 @@ Beat_plan: one concrete irreversible event per part, not just a direction. Final
 
 Forbidden defaults:
 - Forest, woods, or trees as primary setting.
-- Fox, rabbit, bear, deer, owl, or common woodland animal as protagonist or antagonist.
+- Fox, rabbit, bear, deer, owl, insect, or common woodland animal as protagonist or antagonist.
 - Witch, wizard, or generic evil sorcerer as antagonist.
 - Quest to retrieve a stolen object as the sole plot.
 - Moral about friendship or courage stated explicitly at the end.
-- Any setting or character that belongs to a standard European folk tale.
+- Direct copy of a famous folk story, myth, or already-known character.
 
 Dramatic arc of the music this story will accompany:
 {arc_summary}
 """
-    return _generate_json(prompt, BIBLE_SCHEMA, settings, temperature=0.85)
+    bible = _generate_json(prompt, BIBLE_SCHEMA, settings, temperature=0.85)
+    bible["world_profile"] = world_profile
+    return bible
+
+
+def choose_world_profile(segments: list[MusicSegment]) -> dict[str, str]:
+    """
+    Choose a repeatable story world from the first available music observations.
+    No external API call. Deterministic for the same descriptors.
+    """
+    descriptor = _music_descriptor_text(segments)
+    lowered = descriptor.lower()
+    valence = _average_number(segment.valence for segment in segments)
+    arousal = _average_number(segment.arousal for segment in segments)
+    tension = _average_number(segment.tension for segment in segments)
+
+    candidates: list[str] = []
+    if _contains_any(
+        lowered,
+        {
+            "electronic",
+            "synthetic",
+            "industrial",
+            "glitch",
+            "mechanical",
+            "machine",
+            "robot",
+            "techno",
+            "synth",
+            "metallic",
+            "pulse",
+            "digital",
+        },
+    ):
+        candidates.extend(["cyberpunk_rooftops", "clockwork_city", "radio_tower"])
+    if arousal >= 0.67 and tension >= 0.67:
+        candidates.extend(["storm_airship", "volcanic_workshop", "cyberpunk_rooftops"])
+    if arousal <= 0.33 and tension >= 0.67:
+        candidates.extend(["underwater_ruins", "moon_archive", "polar_observatory"])
+    if valence >= 0.30 and arousal >= 0.67:
+        candidates.extend(["festival_harbor", "sky_market", "desert_caravan"])
+    if valence <= -0.30 or _contains_any(lowered, {"dark", "sparse", "minor", "cold", "distant", "empty"}):
+        candidates.extend(["moon_archive", "underwater_ruins", "polar_observatory"])
+    if _contains_any(
+        lowered,
+        {"acoustic", "modal", "historical", "ceremonial", "folk", "chant", "drone", "medieval", "ancient"},
+    ):
+        candidates.extend(["medieval_citadel", "desert_caravan", "european_folk_tales", "polar_observatory"])
+    if not candidates:
+        candidates.extend(["medieval_citadel", "clockwork_city", "radio_tower", "storm_airship"])
+
+    unique_candidates = list(dict.fromkeys(candidates))
+    digest = hashlib.sha256(descriptor.encode("utf-8")).hexdigest()
+    selected_key = unique_candidates[int(digest[:12], 16) % len(unique_candidates)]
+    profile = dict(WORLD_PROFILES[selected_key])
+    profile["id"] = selected_key
+    profile["selection_basis"] = (
+        f"valence={valence:.2f}, arousal={arousal:.2f}, tension={tension:.2f}, "
+        f"candidates={', '.join(unique_candidates)}"
+    )
+    return profile
+
+
+def _deterministic_narrative_seed(segments: list[MusicSegment]) -> str:
+    descriptor = _music_descriptor_text(segments)
+    digest = hashlib.sha256(descriptor.encode("utf-8")).hexdigest()
+    return _NARRATIVE_SEEDS[int(digest[12:24], 16) % len(_NARRATIVE_SEEDS)]
+
+
+def _music_descriptor_text(segments: list[MusicSegment]) -> str:
+    parts: list[str] = []
+    for segment in segments:
+        parts.extend(
+            [
+                segment.music_prompt,
+                segment.mood_hint,
+                segment.tempo_description,
+                segment.mode,
+                segment.harmony,
+                segment.dynamics,
+                segment.texture,
+                segment.rhythmic_character,
+                segment.story_energy,
+                segment.story_tension,
+                segment.story_direction,
+                segment.suggested_event,
+                segment.visual_motion,
+                segment.color_direction,
+            ]
+        )
+        parts.extend(segment.instruments)
+        parts.extend(segment.genre_candidates)
+        parts.extend(segment.notable_events)
+    descriptor = " | ".join(_clean(part) for part in parts if _clean(part))
+    return descriptor or "mixed ambiguous music"
+
+
+def _average_number(values: object) -> float:
+    numbers = [float(value) for value in values if value is not None]
+    if not numbers:
+        return 0.5
+    return sum(numbers) / len(numbers)
+
+
+def _contains_any(text: str, needles: set[str]) -> bool:
+    return any(needle in text for needle in needles)
 
 # ---------------------------------------------------------------------------
 # Stato iniziale
@@ -454,7 +564,7 @@ def generate_story_fragment_with_gemini(
     recent_prose = previous_text[-900:] if previous_text else ""
 
     prompt = f"""
-Write part {fragment_index + 1} of {total_segments} of a coherent children's fairy tale.
+Write part {fragment_index + 1} of {total_segments} of a coherent symbolic adventure story for children.
 Return JSON only. The text must contain no more than {words_per_fragment} words. Aim for
 {max(8, round(words_per_fragment * 0.82))}-{words_per_fragment} words and end with a complete sentence.
 Write the story text in {settings.story_language}, at the "{settings.story_level}" reading level,
@@ -480,6 +590,9 @@ RECENT PROSE (style reference, last scene only):
 
 Rules:
 - Use the same named cast, motives, magical rule, geography, and object state from the bible.
+- Keep every character, name, prop, palette, and location consistent with STORY BIBLE world_profile.
+- Do not drift into woodland, meadow, fairy forest, insects, foxes, rabbits, owls, or small forest animals unless
+  STORY BIBLE world_profile explicitly asks for them.
 - Make cause and effect clear. Do not repeat earlier events.
 - Follow every timestamped direction in order as connected emotional beats inside this scene,
   without naming or exposing timestamps to the audience.
@@ -489,13 +602,12 @@ Rules:
 - Never mention music, audio, tempo, rhythm, harmony, chords, mode, instruments, genres, or performance.
 - display_text is a short summary in the story language for on-screen display.
 - keywords: 3-6 concrete words suitable for animated typography.
-- Produce exactly three image assets in order: background, subject, symbol.
+- Produce exactly two image assets in this order: background, subject.
 - Every image label, prompt, and negative_prompt must be written in English even when the story uses another language.
 - Background prompt: widescreen environment, depth, atmospheric color, no central character, full-screen fill.
 - Subject prompt: repeat the relevant immutable visual identity from the bible word for word; one full
-  non-human character, centered on pure black background, strong clean silhouette, generous empty space,
-  no cast shadow, no scenery.
-- Symbol prompt: one simple isolated object on pure black background, generous empty space.
+  non-human character that fits the selected world, centered on a plain simple background for backend cutout,
+  strong clean silhouette, generous empty space, no cast shadow, no scenery.
 - All prompts: unfinished painterly children's-book style, no text.
 - Keep every image gentle and suitable for ages 6-10. Antagonists may be imposing but never horror-like:
   no fangs, gore, demonic faces, or graphic menace.
@@ -514,7 +626,7 @@ Rules:
             is_final=is_final,
         )
 
-    assets = [
+    assets = order_image_assets([
         ImageAsset(
             role=_clean(item.get("role")).lower() or "background",
             label=_clean(item.get("label")) or "story image",
@@ -524,12 +636,13 @@ Rules:
         )
         for item in parsed.get("image_assets", [])
         if isinstance(item, dict) and _clean(item.get("prompt"))
-    ][:3]
+        and (_clean(item.get("role")).lower() or "background") in IMAGE_ASSET_ROLES
+    ])[:2]
     _stabilize_image_assets(assets, bible)
 
     fragment = StoryFragment(
         id=segment.id,
-        mood=_clean(parsed.get("mood")).upper(),
+        mood=_scene_mood(timeline, parsed.get("mood")),
         text=text,
         music_prompt=" | ".join(item.music_prompt for item in timeline),
         start_s=timeline[0].start_s,
@@ -639,6 +752,22 @@ def _clean(value: object) -> str:
     return " ".join(str(value or "").split())
 
 
+def _scene_mood(music_timeline: list[MusicSegment] | None, llm_mood: object) -> str:
+    durations_by_mood = {label: 0.0 for label in MOOD_LABELS}
+    for index, segment in enumerate(music_timeline or []):
+        mood = _clean(segment.mood_hint).upper()
+        if mood not in durations_by_mood:
+            continue
+        start = segment.start_s if segment.start_s is not None else float(index)
+        end = segment.end_s if segment.end_s is not None else float(index + 1)
+        durations_by_mood[mood] += max(0.001, float(end) - float(start))
+
+    dominant = max(durations_by_mood, key=durations_by_mood.get)
+    if durations_by_mood.get(dominant, 0.0) > 0:
+        return dominant
+    return normalize_mood_label(llm_mood)
+
+
 def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -662,7 +791,7 @@ def _repair_story_length(
         else "Keep the scene open for continuation."
     )
     prompt = f"""
-Compress this children's fairy-tale scene to at most {words_per_fragment} words.
+Compress this children's symbolic adventure scene to at most {words_per_fragment} words.
 Return JSON only. Preserve every consequential event, named character, cause-and-effect link, and continuity fact.
 Use short, complete sentences in {settings.story_language} at the "{settings.story_level}" reading level.
 Do not summarize vaguely, add new events, mention music, or end mid-sentence. {ending_rule}
@@ -676,23 +805,23 @@ SCENE:
 
 
 def _stabilize_image_assets(assets: list[ImageAsset], bible: dict[str, Any]) -> None:
+    world_profile = bible.get("world_profile") if isinstance(bible.get("world_profile"), dict) else {}
+    world_setting = _clean(world_profile.get("setting")) or _clean(bible.get("setting"))
+    world_palette = _clean(world_profile.get("visual_palette"))
+    cast_style = _clean(world_profile.get("cast_style"))
     for asset in assets:
         if asset.role == "background":
             asset.prompt = (
-                f"{asset.prompt} Widescreen environmental composition, edge-to-edge scenery, "
-                "layered depth, no central character."
+                f"{asset.prompt} Selected story world: {world_setting}. Palette direction: {world_palette}. "
+                "Widescreen environmental composition, edge-to-edge scenery, layered depth, no central character."
             )
         elif asset.role == "subject":
             identity = _matching_character_identity(asset, bible)
             asset.prompt = (
                 f"{asset.prompt} Character identity reference, repeat exactly in every appearance: {identity}. "
-                "Single full-body subject, pure black background, strong clean silhouette, "
-                "generous empty black space, no scenery, no cast shadow."
-            )
-        elif asset.role == "symbol":
-            asset.prompt = (
-                f"{asset.prompt} One isolated object, pure black background, "
-                "generous empty black space, strong clean silhouette, no scenery."
+                f"Cast style: {cast_style}. Selected story world: {world_setting}. "
+                "Single full-body subject, plain simple background for backend cutout, strong clean silhouette, "
+                "generous empty space, no scenery, no cast shadow."
             )
 
 

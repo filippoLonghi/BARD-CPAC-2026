@@ -16,7 +16,7 @@ from .story import (
     translate_music_to_story_cues_local,
 )
 from .transport import ProcessingOscStream, prepare_audio_playback
-from .utils import detect_audio_duration, story_chunk_seconds, target_story_words
+from .utils import choose_balanced_fragment_count, detect_audio_duration, music_window_plan, target_story_words_from_wpm
 
 
 def run_sequential_pipeline(
@@ -28,29 +28,44 @@ def run_sequential_pipeline(
     planned_duration_s: float | None = None,
     words_per_fragment: int | None = None,
     music_window_s: float | None = None,
+    story_wpm: float | None = None,
+    fragment_target_s: float | None = None,
+    fragment_min_s: float | None = None,
+    fragment_max_s: float | None = None,
+    short_audio_threshold_s: float | None = None,
+    music_windows_per_fragment: int | None = None,
     startup_delay_s: float | None = None,
     playback_mode: str = "python",
     generate_images: bool = False,
     image_provider: str | None = None,
-    max_image_assets: int = 3,
+    max_image_assets: int = 2,
     send_osc: bool = False,
     output_dir: Path | None = None,
 ) -> PipelineResult:
     resolved_audio = audio_path.expanduser().resolve()
     if not resolved_audio.exists():
         raise FileNotFoundError(f"Audio file not found: {resolved_audio}")
+    actual_duration_s = detect_audio_duration(resolved_audio)
+    duration_for_planning = actual_duration_s
+    effective_story_wpm = story_wpm or settings.story_wpm
+    effective_fragment_target_s = fragment_target_s or settings.fragment_target_s
+    effective_fragment_min_s = fragment_min_s or settings.fragment_min_s
+    effective_fragment_max_s = fragment_max_s or settings.fragment_max_s
+    effective_short_threshold_s = short_audio_threshold_s or settings.short_audio_threshold_s
+    effective_music_windows = music_windows_per_fragment or settings.music_windows_per_fragment
+    fixed_music_window_s = music_window_s if music_window_s is not None else settings.music_window_s
+    automatic_fragment_count: int | None = None
     if fragment_count is not None:
         chunk_s = None
     elif chunk_s is None:
-        chunk_s = max(
-            settings.story_scene_s,
-            story_chunk_seconds(
-                settings.target_words_per_fragment,
-                settings.default_wpm,
-                settings.text_coverage,
-            ),
+        automatic_fragment_count = choose_balanced_fragment_count(
+            duration_for_planning,
+            target_s=effective_fragment_target_s,
+            min_s=effective_fragment_min_s,
+            max_s=effective_fragment_max_s,
+            short_audio_threshold_s=effective_short_threshold_s,
         )
-    analysis_window_s = music_window_s or settings.music_window_s
+        fragment_count = automatic_fragment_count
     processing_delay_s = (
         settings.processing_startup_delay_s if startup_delay_s is None else max(0.0, startup_delay_s)
     )
@@ -66,7 +81,6 @@ def run_sequential_pipeline(
     if not chunks:
         raise RuntimeError("The audio file did not produce any chunks.")
 
-    actual_duration_s = detect_audio_duration(resolved_audio)
     effective_chunk_s = chunks[0].end_s - chunks[0].start_s
     planned_total = (
         max(len(chunks), ceil(planned_duration_s / effective_chunk_s))
@@ -76,9 +90,15 @@ def run_sequential_pipeline(
     chosen_image_provider = (image_provider or settings.image_provider).lower() if generate_images else "none"
     if generate_images and chosen_image_provider in {"", "none"}:
         raise ValueError("Image generation is enabled. Choose imagen, replicate, or openverse.")
-    planned_music_segments = sum(
-        max(1, round((chunk.end_s - chunk.start_s) / max(5.0, analysis_window_s))) for chunk in chunks
-    )
+    music_window_plans = [
+        music_window_plan(
+            chunk.end_s - chunk.start_s,
+            fixed_window_s=fixed_music_window_s,
+            windows_per_fragment=effective_music_windows,
+        )
+        for chunk in chunks
+    ]
+    planned_music_segments = sum(count for _, count in music_window_plans)
     planned_image_calls = len(chunks) * max_image_assets if generate_images else 0
     print(
         "Hybrid plan: "
@@ -124,6 +144,7 @@ def run_sequential_pipeline(
 
     next_music_segment_id = 1
     for index, chunk in enumerate(chunks):
+        analysis_window_s, target_music_windows = music_window_plans[index]
         scene_music_segments = analyze_chunk_windows_with_gemini(
             chunk.path,
             settings,
@@ -131,6 +152,7 @@ def run_sequential_pipeline(
             start_s=chunk.start_s,
             end_s=chunk.end_s,
             window_s=analysis_window_s,
+            target_segments=target_music_windows if fixed_music_window_s is None else None,
         )
         translate_music_to_story_cues_local(scene_music_segments)
         music_segments.extend(scene_music_segments)
@@ -140,10 +162,9 @@ def run_sequential_pipeline(
             bible = create_story_bible(scene_music_segments, settings, planned_total)
             state = initial_story_state(bible)
 
-        chunk_words = words_per_fragment or target_story_words(
+        chunk_words = words_per_fragment or target_story_words_from_wpm(
             chunk.end_s - chunk.start_s,
-            settings.default_wpm,
-            settings.text_coverage,
+            effective_story_wpm,
         )
         target_word_counts.append(chunk_words)
         fragment, state = generate_story_fragment_with_gemini(
@@ -186,7 +207,14 @@ def run_sequential_pipeline(
             state,
             actual_duration_s,
             effective_chunk_s,
-            analysis_window_s,
+            fixed_music_window_s,
+            effective_music_windows,
+            automatic_fragment_count,
+            effective_story_wpm,
+            effective_fragment_target_s,
+            effective_fragment_min_s,
+            effective_fragment_max_s,
+            effective_short_threshold_s,
             planned_duration_s,
             planned_total,
             chosen_image_provider,
@@ -194,6 +222,7 @@ def run_sequential_pipeline(
             playback_mode,
             image_totals,
             target_word_counts,
+            music_window_plans,
             settings,
             complete=index == len(chunks) - 1,
         )
@@ -235,7 +264,14 @@ def _build_result(
     state: dict[str, object],
     actual_duration_s: float | None,
     chunk_s: float,
-    music_window_s: float,
+    music_window_s: float | None,
+    music_windows_per_fragment: int,
+    automatic_fragment_count: int | None,
+    story_wpm: float,
+    fragment_target_s: float,
+    fragment_min_s: float,
+    fragment_max_s: float,
+    short_audio_threshold_s: float,
     planned_duration_s: float | None,
     planned_total: int,
     image_provider: str,
@@ -243,6 +279,7 @@ def _build_result(
     playback_mode: str,
     image_totals: dict[str, int | float],
     target_word_counts: list[int],
+    music_window_plans: list[tuple[float, int]],
     settings: BardSettings,
     *,
     complete: bool,
@@ -265,6 +302,11 @@ def _build_result(
             "chunk_s": chunk_s,
             "story_scene_s": chunk_s,
             "music_window_s": music_window_s,
+            "music_window_mode": "fixed" if music_window_s is not None else "derived-per-fragment",
+            "music_windows_per_fragment": music_windows_per_fragment,
+            "music_window_plans": [
+                {"window_s": window_s, "count": count} for window_s, count in music_window_plans
+            ],
             "music_segment_count": len(music_segments),
             "story_scene_count": len(fragments),
             "target_word_counts": target_word_counts,
@@ -273,9 +315,15 @@ def _build_result(
             "story_provider": "vertex",
             "story_language": settings.story_language,
             "story_level": settings.story_level,
+            "story_wpm": story_wpm,
             "reading_wpm": settings.default_wpm,
-            "text_coverage": settings.text_coverage,
+            "text_coverage_deprecated": settings.text_coverage,
             "target_words_per_fragment": settings.target_words_per_fragment,
+            "automatic_fragment_count": automatic_fragment_count,
+            "fragment_target_s": fragment_target_s,
+            "fragment_min_s": fragment_min_s,
+            "fragment_max_s": fragment_max_s,
+            "short_audio_threshold_s": short_audio_threshold_s,
             "image_provider": image_provider,
             "playback_mode": playback_mode,
             "estimated_api_calls": {

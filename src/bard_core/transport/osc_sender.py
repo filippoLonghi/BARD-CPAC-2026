@@ -8,7 +8,7 @@ import urllib.parse
 
 from typing import Callable
 
-from ..contracts import StoryFragment
+from ..contracts import IMAGE_ASSET_ROLES, StoryFragment
 
 
 class ProcessingOscStream:
@@ -102,8 +102,10 @@ def send_fragments_to_processing(
     start_delay_s: float = 2.0,
     include_images: bool = False,
     audio_path: Path | None = None,
+    processing_audio_path: Path | None = None,
     wait_for_audio: bool = True,
     ready_port: int = 5007,
+    ready_bind_host: str = "127.0.0.1",
     ready_timeout_s: float = 8.0,
 ) -> None:
     if start_delay_s > 0:
@@ -115,9 +117,13 @@ def send_fragments_to_processing(
         slide_duration_s=slide_duration_s,
         include_images=include_images,
         ready_port=ready_port,
+        ready_bind_host=ready_bind_host,
+        path_mapper=_processing_visible_path,
     )
     stream.start()
     stream.await_ready(ready_timeout_s)
+    if processing_audio_path:
+        stream.set_processing_audio(_processing_visible_path(processing_audio_path))
     for index, fragment in enumerate(fragments):
         stream.send(fragment, final=index == len(fragments) - 1)
         time.sleep(0.05)
@@ -135,7 +141,10 @@ def _send_fragment_images(
     fragment: StoryFragment,
     path_mapper: Callable[[Path], str] | None = None,
 ) -> None:
-    for layer_index, asset in enumerate(fragment.image_assets):
+    layer_index = 0
+    for asset in fragment.image_assets:
+        if (asset.role or "").strip().lower() not in IMAGE_ASSET_ROLES:
+            continue
         if not asset.local_path:
             continue
         local_path = Path(asset.local_path).expanduser().resolve()
@@ -150,6 +159,7 @@ def _send_fragment_images(
                 path_mapper(local_path) if path_mapper else local_path.as_posix(),
             ],
         )
+        layer_index += 1
         time.sleep(0.03)
 
 
@@ -165,6 +175,19 @@ def _segment_payload(fragment: StoryFragment, fallback_duration_s: float) -> lis
         start_s,
         max(start_s + 0.1, end_s),
     ]
+
+
+def _processing_visible_path(container_path: Path) -> str:
+    host_workspace = os.environ.get("BARD_HOST_WORKSPACE")
+    container_workspace = Path(os.environ.get("BARD_CONTAINER_WORKSPACE", "/workspace"))
+    if not host_workspace:
+        return container_path.as_posix()
+    try:
+        relative = container_path.resolve().relative_to(container_workspace.resolve())
+    except ValueError:
+        return container_path.as_posix()
+    host_root = host_workspace.replace("\\", "/").rstrip("/")
+    return f"{host_root}/{relative.as_posix()}"
 
 
 def prepare_audio_playback(audio_path: Path):

@@ -287,6 +287,13 @@ GOOGLE_CLOUD_PROJECT=your-shared-gcp-project-id
 BARD_GCP_LOCATION=europe-west1
 GOOGLE_CLOUD_LOCATION=europe-west1
 BARD_STORAGE_BUCKET=your-shared-gcp-project-id-bard-artifacts
+BARD_IMAGE_PROVIDER=imagen
+BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001
+BARD_IMAGE_LOCATION=europe-west1
+BARD_IMAGEN_MODEL=imagen-4.0-fast-generate-001
+BARD_IMAGEN_LOCATION=europe-west1
+BARD_REMOVE_IMAGE_BACKGROUND=true
+BARD_BACKGROUND_REMOVAL_PROVIDER=rembg
 ```
 
 Usually leave this commented because local development uses `gcloud auth application-default login`:
@@ -403,6 +410,16 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --out-dir runs\gcp-processing-test
 ```
 
+Image generation notes:
+
+- The default GCP image model is `imagen-4.0-fast-generate-001`, with `europe-west1` as the
+  expected location for the current working European setup.
+- `BARD_IMAGE_MODEL`/`BARD_IMAGE_LOCATION` are aliases for the older
+  `BARD_IMAGEN_MODEL`/`BARD_IMAGEN_LOCATION` names.
+- Do not switch to a newer model unless it is verified in the configured GCP location.
+- Generated subject images are cut out in Python before Processing receives them. Docker installs
+  `rembg`, `onnxruntime`, and `Pillow` for that step.
+
 Prototype-compatible path, using local CLAP and local Mistral:
 
 ```powershell
@@ -449,7 +466,7 @@ gcloud run deploy bard-api `
   --region $REGION `
   --service-account $SA_EMAIL `
   --allow-unauthenticated `
-  --set-env-vars "BARD_AUDIO_PROVIDER=gemini,BARD_STORY_PROVIDER=vertex,BARD_GCP_PROJECT_ID=$PROJECT_ID,BARD_GCP_LOCATION=$REGION,BARD_STORAGE_BUCKET=$BUCKET,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=true"
+  --set-env-vars "BARD_AUDIO_PROVIDER=gemini,BARD_STORY_PROVIDER=vertex,BARD_GCP_PROJECT_ID=$PROJECT_ID,BARD_GCP_LOCATION=$REGION,BARD_STORAGE_BUCKET=$BUCKET,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=true,BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001,BARD_IMAGE_LOCATION=$REGION,BARD_REMOVE_IMAGE_BACKGROUND=true,BARD_BACKGROUND_REMOVAL_PROVIDER=rembg"
 ```
 
 For public demos, `--allow-unauthenticated` is convenient. For a real performance installation, use authenticated access.

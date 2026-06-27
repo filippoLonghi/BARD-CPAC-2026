@@ -29,7 +29,7 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --story-level early-reader `
   --generate-images `
   --image-provider openverse `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --send-osc `
   --out-dir runs\arabesque-complete
 ```
@@ -45,13 +45,13 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --story-level early-reader `
   --generate-images `
   --image-provider imagen `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --send-osc `
   --out-dir runs\arabesque-imagen
 ```
 
-With default 60-second scenes, Arabesque produces about five scenes and fifteen images. At
-`$0.02` per Imagen 4 Fast image, the image portion is approximately `$0.30`.
+With default 60-second scenes, Arabesque produces about five scenes and ten images. At
+`$0.02` per Imagen 4 Fast image, the image portion is approximately `$0.20`.
 
 ## Replay Existing Results Without APIs
 
@@ -82,19 +82,19 @@ Inspect `music_segments.json`, `story.json`, and `audio_chunks/` in that output 
 | `--audio PATH` | Required source music file. |
 | `--story-language Italian` | Audience-facing story language. Analysis and image prompts remain English. |
 | `--story-level early-reader` | Vocabulary and sentence complexity: `early-reader`, `children`, `general`, or `literary`. |
-| `--reading-wpm 120` | Assumed reading speed. Higher values permit more words. |
-| `--text-coverage 0.72` | Fraction of scene time budgeted for text. Lower values create shorter text and more breathing room. |
-| `--music-window-seconds 15` | Fine observation size inside a story scene. Smaller values capture more musical changes. |
-| `--chunk-seconds 60` | Debug override for story-scene duration. Longer scenes mean fewer story/image calls. |
-| `--fragments 3` | Debug alternative that divides the file into exactly N story scenes. |
+| `--story-wpm 70` | Target displayed story words per minute. Higher values permit more words. |
+| `--fragment-target-seconds 60` | Automatic balanced-splitting target duration. Usually omit and use the default. |
+| `--music-windows-per-fragment 4` | Fine observations per story fragment when fixed music windows are not set. |
+| `--music-window-seconds 15` | Optional fixed fine-observation size. Overrides derived windows-per-fragment timing. |
+| `--chunk-seconds 60` | Debug override that preserves old fixed-size story-scene chunks. |
+| `--fragments 3` | Debug alternative that divides the file into exactly N balanced story scenes. |
 | `--planned-duration 600` | Live-performance simulation: plans the story arc for this duration, while an uploaded file still ends at its real end. |
-| `--words-per-fragment 80` | Manual word target. Normally omit it so duration and reading settings calculate the target. |
-| `--target-words-per-fragment 72` | Preferred minimum used when deriving automatic scene duration. |
+| `--words-per-fragment 80` | Manual word target. Normally omit it so fragment duration and `--story-wpm` calculate the target. |
 | `--generate-images` | Enables image retrieval/generation. Without it, no image provider runs. |
 | `--image-provider openverse` | Free retrieval for tests. |
 | `--image-provider imagen` | Paid Vertex AI image generation. |
 | `--image-provider replicate` | Optional paid Replicate/FLUX experiment requiring its API token. |
-| `--max-image-assets 3` | Maximum images per scene. Imagen cost scales directly with this value. |
+| `--max-image-assets 2` | Maximum images per scene. Current roles are `background` and `subject`; Imagen cost scales directly with this value. |
 | `--startup-delay 1.5` | Extra delay before Processing primes scene one. |
 | `--playback python` | Local default. Use `processing` when Python runs inside Docker Desktop. |
 | `--send-osc` | Sends data to Processing and plays the source audio. |
@@ -111,17 +111,16 @@ Replay-only `send-osc` parameters:
 | `--duration 10` | Fallback scene duration only when saved fragments have no `start_s/end_s`. |
 | `--host` / `--port` | Override the Processing OSC destination. |
 
-The equivalent persistent defaults live in `bard-local.env` as `BARD_READING_WPM`,
-`BARD_TEXT_COVERAGE`, `BARD_MUSIC_WINDOW_S`, `BARD_STORY_SCENE_S`,
-`BARD_PROCESSING_STARTUP_DELAY_S`, and the image/OSC settings shown in
-`configs/local.example.env`. A command-line option overrides the corresponding setting for one run.
+Creative timing defaults live in code and the non-secret examples under `configs/timing.*.env`.
+Do not put them in the private secrets env by default. A command-line option overrides the
+corresponding setting for one run.
 
 ## Recommended Adjustments
 
-- More coherence and lower cost: increase `--chunk-seconds`, for example `75`.
-- More frequent story/image changes: decrease `--chunk-seconds`, with higher API cost.
-- Finer mood tracking without more images: decrease `--music-window-seconds`.
-- Less text and longer reading pauses: reduce `--text-coverage` or `--reading-wpm`.
+- More coherence and lower cost: raise `--fragment-target-seconds`, or use explicit `--fragments`.
+- More frequent story/image changes: lower `--fragment-target-seconds`, with higher API/image cost.
+- Finer mood tracking without more images: increase `--music-windows-per-fragment`.
+- Less text and longer reading pauses: reduce `--story-wpm`.
 - Free visual testing: use `openverse`.
 - Final generated visuals: use `imagen`.
 

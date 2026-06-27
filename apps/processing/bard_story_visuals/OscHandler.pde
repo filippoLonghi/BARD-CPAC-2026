@@ -1,6 +1,18 @@
 class OscHandler {
   /* classe per la gestione dei messaggi OSC che arrivano e settano cose diverse.
      setta tutti i parametri e il testo delle variabili nel main */
+
+  NetAddress pythonReplyLocation(OscMessage message, int readyPort) {
+    String replyHost = "127.0.0.1";
+    try {
+      if (message.netAddress() != null && message.netAddress().address() != null) {
+        replyHost = message.netAddress().address();
+      }
+    } catch (Exception error) {
+      replyHost = "127.0.0.1";
+    }
+    return new NetAddress(replyHost, readyPort);
+  }
   
   void handleMessage(OscMessage message) {
     
@@ -27,11 +39,11 @@ class OscHandler {
     if (message.checkAddrPattern("/prepare")) {
       int readyPort = 5007;
       if (message.checkTypetag("i")) readyPort = message.get(0).intValue();
-      pythonReadyLocation = new NetAddress("127.0.0.1", readyPort);
+      pythonReadyLocation = pythonReplyLocation(message, readyPort);
       OscMessage readyMessage = new OscMessage("/ready");
       readyMessage.add(1);
       oscP5.send(readyMessage, pythonReadyLocation);
-      println(">>> READY");
+      println(">>> READY " + pythonReadyLocation.address() + ":" + readyPort);
       return;
     }
     
@@ -43,7 +55,7 @@ class OscHandler {
         println(">>> Cannot prime: no scene received");
         return;
       }
-      pythonReadyLocation = new NetAddress("127.0.0.1", readyPort);
+      pythonReadyLocation = pythonReplyLocation(message, readyPort);
       Segmento firstSegment = director.playlist.get(0);
       
       if (processingAudioPath.length() > 0) {

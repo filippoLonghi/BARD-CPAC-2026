@@ -126,7 +126,7 @@ void updateCurrentSegmentImage(Atmosphere currentVals) {
   if (!director.isPlaying || director.currentSegmentIndex < 0 || director.currentSegmentIndex >= director.playlist.size()) return;
   
   // Disegniamo con un ordine fisso per avere la giusta profondità
-  String[] drawOrder = {"background", "subject", "symbol"};
+  String[] drawOrder = {"background", "subject"};
   
   for (String role : drawOrder) {
     if (imgSystems.containsKey(role)) {
@@ -166,11 +166,6 @@ void loadSegmentImages(Segmento segment) {
       rh = height * 0.55f;
       rx = width * 0.58f; 
       ry = height * 0.38f;
-    } else if (role.equals("symbol")) {
-      rw = width * 0.16f;
-      rh = height * 0.22f;
-      rx = width * 0.42f;
-      ry = height * 0.10f;
     }
 
     // Le vecchie particelle ricevono le nuove coordinate e i nuovi colori!

@@ -1,6 +1,6 @@
 # Pipeline Data Contracts
 
-BARD keeps the raw musical evidence separate from the fairy-tale prose. This makes each boundary
+BARD keeps the raw musical evidence separate from the child-friendly symbolic adventure prose. This makes each boundary
 inspectable and prevents uncertain instrument or genre guesses from appearing in the story.
 
 ## 1. Audio File To Saved Chunks
@@ -86,11 +86,14 @@ central problem + stakes
 moral
 ending target
 one planned beat per expected fragment
+world_profile selected deterministically from the first available music observations
 ```
 
 The design follows a child-friendly story map: characters, setting, plot, problem, and solution, with
-a beginning, middle, and end. It also borrows a small useful subset of Propp's fairy-tale functions:
-lack/problem, departure, helper or magical aid, struggle, victory, solution, and return.
+a beginning, middle, and end. The world profile keeps the story from defaulting to one repeated
+woodland/fairy mode; depending on audio descriptors, the setting can become a radio tower, moon
+archive, clockwork city, storm airship, desert caravan, festival harbor, medieval citadel, or another
+configured world. This selection is local Python logic, not another LLM call.
 
 Sources:
 
@@ -101,7 +104,7 @@ After each fragment, `story_state` records location, character status, magical-o
 event, unresolved threads, and facts that must remain true. The next call receives the immutable bible
 and this compact state, rather than relying only on a growing prose transcript.
 
-## 5. Story Fragment To Three Visual Assets
+## 5. Story Fragment To Two Visual Assets
 
 Each fragment contains full prose for narration plus shorter material for projection:
 
@@ -112,17 +115,22 @@ Each fragment contains full prose for narration plus shorter material for projec
   "story_event": "Nilo discovers the stolen dawn key.",
   "text": "Full child-friendly story paragraph...",
   "display_text": "The dawn key had vanished.",
-  "keywords": ["dawn", "key", "forest", "shadow"],
+  "keywords": ["signal", "door", "tower"],
   "image_assets": [
-    {"role": "background", "label": "moonlit forest", "prompt": "..."},
-    {"role": "subject", "label": "Nilo the fox", "prompt": "..."},
-    {"role": "symbol", "label": "dawn key", "prompt": "..."}
+    {"role": "background", "label": "radio tower", "prompt": "..."},
+    {"role": "subject", "label": "Lumo signal mask", "prompt": "..."}
   ]
 }
 ```
 
-The three assets are generated or retrieved independently. `scene_cards.json` is the best visual
+The two assets are generated or retrieved independently. `scene_cards.json` is the best visual
 debugging view; it includes prompts, provider, model, local path, source/license, status, and errors.
+Symbol images are intentionally disabled for now and should not appear in generated story data, image
+generation jobs, OSC messages, or Processing draw order.
+
+Generated subject assets are postprocessed in Python into transparent PNGs before Processing receives
+them. Background/environment assets normally remain full-frame. Processing uses alpha pixels for
+cutouts and only falls back to color flood-fill for non-alpha legacy images.
 
 ## 6. Python To Processing
 
@@ -151,36 +159,45 @@ before its scene boundary.
 Python sends `/start` and starts local playback with `pygame` immediately afterward. Processing
 follows the audio clock, not accumulated slide delays. If a cloud scene arrives late, Processing shows it at the
 correct current time instead of shifting every later fragment; until it arrives, the previous visual
-state remains visible. True microphone mode will replace the local player with the live input stream.
+state remains visible. This stale-image persistence is intentional for now and has not been changed.
+True microphone mode will replace the local player with the live input stream.
+
+Canonical moods are shared exactly between Python and Processing:
+
+```text
+DARK, CALM, ANXIOUS, DENSE, RISING TENSION, RELEASE, BRIGHT, SPARSE
+```
+
+Python normalizes invalid moods to `CALM` before sending `/segment`.
 
 ## Timing And Story Length
 
 Unless `--words-per-fragment` is supplied:
 
 ```text
-target words = segment seconds * reading WPM / 60 * text coverage
+target words = fragment seconds * BARD_STORY_WPM / 60
 ```
 
-Defaults are `120 WPM` and `0.72` coverage. This is deliberately slower than fluent adult fiction
-reading because viewers also follow moving words, images, and music.
+The default is `BARD_STORY_WPM=70`, deliberately slower than fluent adult fiction because viewers
+also follow moving words, images, and music.
 
-When neither `--chunk-seconds` nor `--fragments` is provided, BARD uses longer
-`BARD_STORY_SCENE_S` windows, normally 60 seconds. Inside each scene, one Gemini audio request
-returns several timestamped observations using `BARD_MUSIC_WINDOW_S`, normally 15 seconds.
+When neither `--chunk-seconds` nor `--fragments` is provided, BARD chooses balanced story fragments
+near `BARD_FRAGMENT_TARGET_S`, normally 60 seconds. Inside each scene, one Gemini audio request
+returns `BARD_MUSIC_WINDOWS_PER_FRAGMENT` timestamped observations, normally 4.
 One story request receives that complete ordered list, so the prose follows small musical changes
 while the scene shares one coherent passage and one set of images.
 
-Text length is calculated from the exact scene duration, audience reading speed, and coverage. The
-final short scene therefore receives fewer words and finishes with the music. `--chunk-seconds` and
+Text length is calculated from the exact scene duration and `BARD_STORY_WPM`. Balanced automatic
+splitting avoids tiny final scenes while still ending exactly with the music. `--chunk-seconds` and
 `--fragments` remain debugging overrides for story-scene boundaries.
 
 These controls are configurable:
 
 ```text
 --music-window-seconds 15
+--music-windows-per-fragment 4
 --chunk-seconds 60
---reading-wpm 105
---text-coverage 0.70
+--story-wpm 70
 --story-language Italian
 --story-level early-reader|children|general|literary
 ```

@@ -13,6 +13,9 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       BARD_OUTPUT_DIR: /workspace/runs
+      BARD_MAX_IMAGE_ASSETS: 2
+      BARD_REMOVE_IMAGE_BACKGROUND: "true"
+      BARD_BACKGROUND_REMOVAL_PROVIDER: rembg
       BARD_OSC_HOST: host.docker.internal
       BARD_OSC_PORT: 5005
       BARD_OSC_READY_PORT: 5007

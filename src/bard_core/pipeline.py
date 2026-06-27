@@ -138,5 +138,8 @@ def run_pipeline(
             slide_duration_s=slide_duration_s,
             include_images=generate_images,
             audio_path=resolved_audio,
+            ready_port=settings.osc_ready_port,
+            ready_bind_host=settings.osc_ready_bind_host,
+            ready_timeout_s=settings.processing_ready_timeout_s,
         )
     return result

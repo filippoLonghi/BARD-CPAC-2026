@@ -7,6 +7,7 @@ import sys
 
 from .config import BardSettings, load_env_file
 from .contracts import ImageAsset, PipelineResult, StoryFragment, story_fragments_from_json, write_json
+from .audio import convert_audio_to_wav
 from .images import generate_images_for_fragments
 from .pipeline import make_run_id, run_pipeline
 from .pipeline_sequential import run_sequential_pipeline
@@ -62,6 +63,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Length of fine musical observations inside each longer story scene.",
     )
     sequential.add_argument(
+        "--fragment-target-seconds",
+        type=float,
+        default=None,
+        help="Target automatic story-fragment duration. Ignored by explicit --fragments or --chunk-seconds.",
+    )
+    sequential.add_argument(
+        "--fragment-min-seconds",
+        type=float,
+        default=None,
+        help="Preferred minimum automatic story-fragment duration for longer audio.",
+    )
+    sequential.add_argument(
+        "--fragment-max-seconds",
+        type=float,
+        default=None,
+        help="Preferred maximum automatic story-fragment duration for longer audio.",
+    )
+    sequential.add_argument(
+        "--short-audio-threshold-seconds",
+        type=float,
+        default=None,
+        help="Duration below which automatic splitting chooses only one or two balanced fragments.",
+    )
+    sequential.add_argument(
+        "--music-windows-per-fragment",
+        type=int,
+        default=None,
+        help="Fine music observations per story fragment when --music-window-seconds is not set.",
+    )
+    sequential.add_argument(
         "--startup-delay",
         type=float,
         default=None,
@@ -76,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_story_style_arguments(sequential)
     sequential.add_argument("--generate-images", action="store_true")
     sequential.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
-    sequential.add_argument("--max-image-assets", type=int, default=3)
+    sequential.add_argument("--max-image-assets", type=int, default=2)
     sequential.add_argument("--send-osc", action="store_true")
     sequential.add_argument("--out-dir", default=None)
 
@@ -100,6 +131,12 @@ def build_parser() -> argparse.ArgumentParser:
     osc.add_argument("--delay", type=float, default=2.0)
     osc.add_argument("--include-images", action="store_true", help="Also send /image messages for local image assets.")
     osc.add_argument("--audio", default=None, help="Optional source audio to play in sync with /start.")
+    osc.add_argument(
+        "--playback",
+        choices=["python", "processing"],
+        default="python",
+        help="Play audio with local Python or inside host Processing (required for Docker Desktop).",
+    )
     return parser
 
 
@@ -138,6 +175,12 @@ def main(argv: list[str] | None = None) -> None:
             planned_duration_s=args.planned_duration,
             words_per_fragment=args.words_per_fragment,
             music_window_s=args.music_window_seconds,
+            story_wpm=args.story_wpm,
+            fragment_target_s=args.fragment_target_seconds,
+            fragment_min_s=args.fragment_min_seconds,
+            fragment_max_s=args.fragment_max_seconds,
+            short_audio_threshold_s=args.short_audio_threshold_seconds,
+            music_windows_per_fragment=args.music_windows_per_fragment,
             startup_delay_s=args.startup_delay,
             playback_mode=args.playback,
             generate_images=args.generate_images,
@@ -193,6 +236,9 @@ def main(argv: list[str] | None = None) -> None:
                 port=settings.osc_port,
                 slide_duration_s=args.duration,
                 include_images=True,
+                ready_port=settings.osc_ready_port,
+                ready_bind_host=settings.osc_ready_bind_host,
+                ready_timeout_s=settings.processing_ready_timeout_s,
             )
         print(f"Image-only run complete: {run_id}")
         print(f"Fragments: {len(fragments)}")
@@ -202,7 +248,19 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "send-osc":
-        fragments = story_fragments_from_json(Path(args.story_json).expanduser())
+        story_json_path = Path(args.story_json).expanduser()
+        fragments = story_fragments_from_json(story_json_path)
+        audio_path = Path(args.audio).expanduser() if args.audio else None
+        processing_audio_path = None
+        if args.playback == "processing":
+            if not audio_path:
+                parser.error("send-osc --playback processing requires --audio.")
+            target_audio_path = story_json_path.parent / "processing_audio.wav"
+            if audio_path.expanduser().resolve() == target_audio_path.expanduser().resolve():
+                processing_audio_path = audio_path.expanduser().resolve()
+            else:
+                processing_audio_path = convert_audio_to_wav(audio_path, target_audio_path)
+            audio_path = None
         send_fragments_to_processing(
             fragments=fragments,
             host=args.host or settings.osc_host,
@@ -210,8 +268,10 @@ def main(argv: list[str] | None = None) -> None:
             slide_duration_s=args.duration,
             start_delay_s=args.delay,
             include_images=args.include_images,
-            audio_path=Path(args.audio).expanduser() if args.audio else None,
+            audio_path=audio_path,
+            processing_audio_path=processing_audio_path,
             ready_port=settings.osc_ready_port,
+            ready_bind_host=settings.osc_ready_bind_host,
             ready_timeout_s=settings.processing_ready_timeout_s,
         )
         print(f"Sent {len(fragments)} fragments to {args.host or settings.osc_host}:{args.port or settings.osc_port}")
@@ -245,7 +305,8 @@ def _add_story_style_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Vocabulary and sentence-complexity level.",
     )
-    parser.add_argument("--reading-wpm", type=float, default=None, help="Target audience reading speed.")
+    parser.add_argument("--reading-wpm", type=float, default=None, help="Legacy alias for --story-wpm.")
+    parser.add_argument("--story-wpm", type=float, default=None, help="Target displayed story words per minute.")
     parser.add_argument(
         "--target-words-per-fragment",
         type=int,
@@ -256,7 +317,7 @@ def _add_story_style_arguments(parser: argparse.ArgumentParser) -> None:
         "--text-coverage",
         type=float,
         default=None,
-        help="Fraction of each story scene budgeted for audience reading, from 0.25 to 0.95.",
+        help="Deprecated for run-fragments; use --story-wpm instead.",
     )
 
 
@@ -266,22 +327,25 @@ def _settings_with_story_overrides(settings: BardSettings, args: argparse.Namesp
         ("story_language", "story_language"),
         ("story_level", "story_level"),
         ("reading_wpm", "default_wpm"),
+        ("story_wpm", "story_wpm"),
         ("text_coverage", "text_coverage"),
         ("target_words_per_fragment", "target_words_per_fragment"),
     ):
         value = getattr(args, arg_name, None)
         if value is not None:
             values[setting_name] = value
+    if getattr(args, "reading_wpm", None) is not None and getattr(args, "story_wpm", None) is None:
+        values["story_wpm"] = args.reading_wpm
     return replace(settings, **values) if values else settings
 
 
 def fake_story_card_options() -> dict[str, str]:
     return {
-        "cat-wood-sun": "Recognizable animal + background + light symbol.",
-        "girl-tower-moon": "Human character silhouette + architecture + moon symbol.",
-        "boat-fog-lantern": "Object/vehicle + atmospheric background + glowing symbol.",
-        "fox-snow-fire": "Animal + seasonal landscape + warm symbolic element.",
-        "door-garden-key": "Mystery object + environment + small symbolic prop.",
+        "cat-wood-sun": "Clockwork subject plus plaza background.",
+        "girl-tower-moon": "Signal mask subject plus moon archive background.",
+        "boat-fog-lantern": "Vehicle subject plus foggy harbor background.",
+        "fox-snow-fire": "Forge helper subject plus volcanic workshop background.",
+        "door-garden-key": "Living door subject plus folk village background.",
     }
 
 
@@ -290,81 +354,76 @@ def fake_story_fragments(name: str = "cat-wood-sun") -> list[StoryFragment]:
         "cat-wood-sun": StoryFragment(
             id=1,
             mood="CALM",
-            text="A black cat enters a small wood while a low sun opens behind the branches.",
+            text="A brass clock helper crosses a ticking plaza while the town bells wake.",
             start_s=0.0,
             end_s=10.0,
-            image_prompt="A rough black cat, a quiet wood, and a low warm sun in an unfinished painterly style.",
-            visual_motif="cat in the wood at sunset",
-            palette="deep green, charcoal black, muted amber",
+            image_prompt="A brass clock helper in a clockwork city plaza, unfinished painterly style.",
+            visual_motif="clock helper in ticking plaza",
+            palette="brass, teal patina, warm lamp glow",
             motion="slow drifting layers with soft blur",
             image_assets=[
-                _fake_asset("subject", "black cat", "A simple recognizable black cat silhouette, unfinished painterly sketch texture, soft rough edges, plain dark empty background, no text."),
-                _fake_asset("background", "small wood", "A loose unfinished painted woodland background, simple tree trunks, dark green shadows, soft blur, no animals, no text."),
-                _fake_asset("symbol", "low sun", "A simple warm glowing sun disk, rough painterly texture, soft amber edges, isolated on dark empty background, no text."),
+                _fake_asset("background", "clockwork plaza", "A loose unfinished painted clockwork city plaza, brass towers and ticking street lines, no characters, no text."),
+                _fake_asset("subject", "brass clock helper", "A simple recognizable brass clock helper, round body, teal glass face, unfinished painterly sketch texture, plain simple background, no text."),
             ],
         ),
         "girl-tower-moon": StoryFragment(
             id=1,
             mood="ANXIOUS",
-            text="A small girl waits beside a leaning tower as the moon rises like a quiet witness.",
+            text="A silver signal mask waits beside a moon archive tower as star maps flutter.",
             start_s=0.0,
             end_s=10.0,
-            image_prompt="A rough girl silhouette, a leaning tower, and a pale moon in an unfinished storybook texture.",
-            visual_motif="girl near tower under moon",
+            image_prompt="A silver signal mask near a moon archive tower in an unfinished storybook texture.",
+            visual_motif="signal mask near moon archive",
             palette="ink blue, pale grey, muted violet",
             motion="nervous vertical drift",
             image_assets=[
-                _fake_asset("subject", "small girl silhouette", "A simple recognizable child silhouette in a coat, unfinished charcoal and paint texture, plain dark empty background, no face detail, no text."),
-                _fake_asset("background", "leaning tower", "A loose unfinished painted leaning stone tower, simple architecture, night atmosphere, soft blur, no people, no text."),
-                _fake_asset("symbol", "pale moon", "A pale round moon disk with rough cloudy edges, isolated on dark empty background, no text."),
+                _fake_asset("background", "moon archive tower", "A loose unfinished painted moon archive tower, silver shelves and star maps, night atmosphere, no characters, no text."),
+                _fake_asset("subject", "silver signal mask", "A simple recognizable silver signal mask with blue glass eyes, unfinished charcoal and paint texture, plain simple background, no text."),
             ],
         ),
         "boat-fog-lantern": StoryFragment(
             id=1,
-            mood="DEEP",
-            text="A wooden boat crosses a foggy river while a lantern keeps one warm point alive.",
+            mood="DARK",
+            text="A wooden ferry crosses a foggy harbor while its small cabin light keeps the route alive.",
             start_s=0.0,
             end_s=10.0,
-            image_prompt="A rough wooden boat, foggy river background, and warm lantern glow.",
+            image_prompt="A rough wooden ferry and foggy harbor background.",
             visual_motif="boat in fog with lantern",
             palette="blue grey, dark teal, warm gold",
             motion="slow horizontal drift",
             image_assets=[
-                _fake_asset("subject", "wooden boat", "A simple recognizable wooden rowboat, unfinished painterly texture, soft rough edges, plain dark empty background, no people, no text."),
-                _fake_asset("background", "foggy river", "A loose unfinished painted foggy river at night, blue grey mist, soft blurred banks, no boats, no text."),
-                _fake_asset("symbol", "warm lantern", "A small warm lantern glow, simple recognizable lantern shape, rough painterly amber light, isolated on dark empty background, no text."),
+                _fake_asset("background", "foggy harbor", "A loose unfinished painted foggy harbor at night, blue grey mist, soft blurred docks, no boats, no text."),
+                _fake_asset("subject", "wooden ferry", "A simple recognizable wooden ferry with a tiny warm cabin light, unfinished painterly texture, plain simple background, no people, no text."),
             ],
         ),
         "fox-snow-fire": StoryFragment(
             id=1,
-            mood="ENERGETIC",
-            text="A red fox cuts across a white field while a small fire trembles against the snow.",
+            mood="BRIGHT",
+            text="An ember cart rolls through a volcanic workshop while cooled crystals ring under its wheels.",
             start_s=0.0,
             end_s=10.0,
-            image_prompt="A rough red fox, snowy field, and small fire in an unfinished painted style.",
-            visual_motif="fox in snow near fire",
-            palette="snow white, rust red, ember orange",
+            image_prompt="An ember cart in a volcanic workshop, unfinished painted style.",
+            visual_motif="ember cart in volcanic workshop",
+            palette="basalt black, ember orange, mineral green",
             motion="quick diagonal flicker",
             image_assets=[
-                _fake_asset("subject", "red fox", "A simple recognizable red fox silhouette, unfinished painterly sketch texture, soft rough edges, plain dark empty background, no text."),
-                _fake_asset("background", "snowy field", "A loose unfinished painted snowy field, white ground and faint horizon, soft blur, no animals, no text."),
-                _fake_asset("symbol", "small fire", "A small orange fire flame, rough painterly ember texture, isolated on dark empty background, no text."),
+                _fake_asset("background", "volcanic workshop", "A loose unfinished painted volcanic workshop, basalt lifts, glowing anvils, steam pipes, no characters, no text."),
+                _fake_asset("subject", "ember cart", "A simple recognizable ember cart with small copper wheels, unfinished painterly sketch texture, plain simple background, no text."),
             ],
         ),
         "door-garden-key": StoryFragment(
             id=1,
-            mood="DISSONANT",
-            text="A blue door appears in an overgrown garden, and a brass key hangs where no hand can reach.",
+            mood="DENSE",
+            text="A blue living door listens in a folk village square while market bells answer from the roofs.",
             start_s=0.0,
             end_s=10.0,
-            image_prompt="A rough blue door, overgrown garden, and brass key in an unfinished surreal style.",
-            visual_motif="blue door in garden with key",
+            image_prompt="A rough blue living door in a folk village square, unfinished surreal style.",
+            visual_motif="blue living door in folk village",
             palette="moss green, oxidized blue, brass yellow",
             motion="uneven pulsing reveal",
             image_assets=[
-                _fake_asset("subject", "blue door", "A simple recognizable blue wooden door, unfinished painterly texture, soft rough edges, plain dark empty background, no text."),
-                _fake_asset("background", "overgrown garden", "A loose unfinished painted overgrown garden, tangled green plants, soft blur, no people, no text."),
-                _fake_asset("symbol", "brass key", "A simple recognizable brass key, rough painterly gold texture, isolated on dark empty background, no text."),
+                _fake_asset("background", "folk village square", "A loose unfinished painted European folk village square with painted doors, tiled roofs, market bells, no characters, no text."),
+                _fake_asset("subject", "blue living door", "A simple recognizable blue living door with brass hinges and a listening keyhole, unfinished painterly texture, plain simple background, no text."),
             ],
         ),
     }

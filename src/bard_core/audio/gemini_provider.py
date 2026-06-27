@@ -5,7 +5,7 @@ import mimetypes
 from uuid import uuid4
 
 from ..config import BardSettings
-from ..contracts import MOOD_LABELS, MusicSegment
+from ..contracts import MOOD_LABELS, MusicSegment, normalize_mood_label
 from ..storage import upload_file_to_gcs
 from ..utils import extract_json
 
@@ -152,7 +152,7 @@ Return JSON only.
                 start_s=expected_start if expected_start is not None else item.get("start_s"),
                 end_s=expected_end if expected_end is not None else item.get("end_s"),
                 music_prompt=str(item.get("music_prompt", "")).strip() or "suspended, ambiguous atmosphere",
-                mood_hint=str(item.get("mood_hint", "CALM")).upper(),
+                mood_hint=normalize_mood_label(item.get("mood_hint", "CALM")),
                 confidence=item.get("confidence"),
                 source="gemini-audio",
                 valence=item.get("valence"),
@@ -205,9 +205,10 @@ def analyze_chunk_windows_with_gemini(
     start_s: float,
     end_s: float,
     window_s: float,
+    target_segments: int | None = None,
 ) -> list[MusicSegment]:
     duration_s = max(0.001, end_s - start_s)
-    target_segments = max(1, round(duration_s / max(5.0, window_s)))
+    target_segments = target_segments or max(1, round(duration_s / max(0.001, window_s)))
     segments = analyze_with_gemini(
         audio_path,
         settings,

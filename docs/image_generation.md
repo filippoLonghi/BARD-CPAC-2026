@@ -15,28 +15,42 @@ It is optional. A normal story run does not generate images or spend money unles
 ## Providers
 
 `imagen` is the scalable GCP provider. It runs Imagen through Vertex AI using the existing Google Gen AI SDK and the same GCP auth as the Gemini story/audio path.
-The default model is configurable:
+The default remains the Europe-compatible Imagen model used by the current setup:
 
 ```env
 BARD_IMAGE_PROVIDER=imagen
+BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001
+BARD_IMAGE_LOCATION=europe-west1
 BARD_IMAGEN_MODEL=imagen-4.0-fast-generate-001
 BARD_IMAGEN_LOCATION=europe-west1
+BARD_REMOVE_IMAGE_BACKGROUND=true
+BARD_BACKGROUND_REMOVAL_PROVIDER=rembg
 ```
 
-If Imagen fails with a region/model error, try a region where your GCP project has Imagen access, often `us-central1`.
-For Imagen, BARD sends each asset's full `prompt` field. Imagen 4 does not use the `negative_prompt` field in this implementation.
+`BARD_IMAGE_MODEL` and `BARD_IMAGE_LOCATION` are clearer aliases. The older `BARD_IMAGEN_MODEL`
+and `BARD_IMAGEN_LOCATION` names still work. Do not switch to a newer image model unless it is
+verified in your configured GCP location. If the selected model/location is unavailable, BARD raises
+a clear error instead of silently changing providers.
+
+For Imagen, BARD sends each asset's full `prompt` field. Imagen 4 does not use the `negative_prompt`
+field in this implementation.
 
 `openverse` is the free smoke-test provider. It does not generate a new image; it searches Openverse, downloads a PNG/JPEG result, and stores attribution metadata in `scene_cards.json`.
 For Openverse, BARD derives a one- or two-word search query locally from `search_query` or the asset
-label, for example `black cat` or `warm lantern`. It does not spend an LLM call writing Openverse
+label, for example `radio tower` or `wooden ferry`. It does not spend an LLM call writing Openverse
 queries. The longer `prompt` is reserved for generation models such as Replicate and Imagen.
 
-Imagen prompts follow Google's subject + context + style guidance. Background assets request a
-widescreen environment. Subject and symbol assets request a clean silhouette isolated on pure black,
-which lets Processing discard black pixels and compose them over the background. Character visual
-identities are fixed in the story bible and appended programmatically to every later subject prompt.
-This gives prompt-level continuity. Exact recurring-character identity would require Imagen subject
-customization with reference images, which is a separate future integration.
+Current image assets are exactly two roles in order: `background`, then `subject`. Symbol images are
+intentionally disabled for now; the story writer does not plan them, image generation does not create
+them, and OSC does not send them.
+
+Background assets request a widescreen environment. Subject assets request the immutable cast identity
+from the story bible and a plain simple background for backend cutout. Generated subject images are
+postprocessed in Python with `rembg` into transparent PNGs before Processing receives them. Processing
+uses alpha pixels for cutouts; color flood-fill remains only as a fallback for non-alpha legacy images.
+
+The story bible also carries the deterministic audio-selected world profile. Image prompts append the
+selected setting, cast style, and palette so the background and subject stay in the same world.
 
 References:
 
@@ -71,8 +85,8 @@ Each image asset has:
 ```json
 {
   "role": "subject",
-  "label": "cat",
-  "prompt": "A simple recognizable black cat...",
+  "label": "brass clock helper",
+  "prompt": "A simple recognizable brass clock helper...",
   "negative_prompt": "text, letters, watermark...",
   "provider": "replicate",
   "model": "black-forest-labs/flux-schnell",
@@ -155,7 +169,8 @@ runs/<image_test>/
   images/                 # files that Processing can use
 ```
 
-If only two image files appear, open `image_manifest.json`; the missing layer should have `status: "failed"` and an `error`.
+If fewer than two image files appear, open `image_manifest.json`; the missing layer should have
+`status: "failed"` and an `error`.
 
 Full pipeline Openverse smoke test:
 
@@ -180,7 +195,7 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
 Imagen generation with GCP credits:
 
 ```powershell
-python -m bard_core generate-images --fake-card --fake-card-name cat-wood-sun --image-provider imagen --max-image-assets 1 --out-dir runs\imagen-cat-test
+python -m bard_core generate-images --fake-card --fake-card-name cat-wood-sun --image-provider imagen --max-image-assets 1 --out-dir runs\imagen-subject-test
 ```
 
 Remove `--max-image-assets 1` when the first paid/GCP smoke test works.
@@ -188,7 +203,7 @@ Remove `--max-image-assets 1` when the first paid/GCP smoke test works.
 If you have a private env file path in `$ENV_FILE`, this also works:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --fake-card-name cat-wood-sun --image-provider imagen --max-image-assets 1 --out-dir runs\imagen-cat-test
+python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --fake-card-name cat-wood-sun --image-provider imagen --max-image-assets 1 --out-dir runs\imagen-subject-test
 ```
 
 Processing test with generated/retrieved images:
@@ -227,7 +242,8 @@ GCP billing/auth/model-region errors:
 - Run `gcloud auth application-default login`.
 - Confirm Vertex AI is enabled.
 - Confirm the GCP project has billing or free credits.
-- Try changing `BARD_IMAGEN_LOCATION`.
+- Confirm `BARD_IMAGE_MODEL`/`BARD_IMAGEN_MODEL` is available in `BARD_IMAGE_LOCATION`/`BARD_IMAGEN_LOCATION`.
+- For the current Europe setup, start with `imagen-4.0-fast-generate-001` in `europe-west1`.
 
 Imagen safety block or no image bytes:
 
@@ -246,3 +262,10 @@ Processing cannot load a path:
 - Check that `local_path` exists in `scene_cards.json`.
 - Use the same machine for Python and Processing.
 - Prefer paths printed with forward slashes, like `C:/Users/...`, which the OSC sender now uses.
+
+Background removal errors:
+
+- Docker installs `rembg`, `onnxruntime`, and `Pillow` for the standard workflow.
+- If `BARD_REMOVE_IMAGE_BACKGROUND=true` and `BARD_BACKGROUND_REMOVAL_PROVIDER=rembg`, missing
+  `rembg` is a hard error. Use Docker or install the declared Python dependencies.
+- Background/environment images normally remain full-frame and are not cut out.

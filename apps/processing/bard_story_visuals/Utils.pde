@@ -94,6 +94,14 @@ boolean[] calculateFloodFillMask(PImage img) {
 }
 
 
+boolean hasTransparentPixels(PImage img) {
+  img.loadPixels();
+  for (int i = 0; i < img.pixels.length; i++) {
+    if (alpha(img.pixels[i]) < 250) return true;
+  }
+  return false;
+}
+
 
 // TAGLIERINA GEOMETRICA PER CORNICI AI BORDI
 PImage autoCropFrames(PImage img) {

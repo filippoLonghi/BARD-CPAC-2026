@@ -21,3 +21,6 @@ outputs/
 /story.json
 /full_story.txt
 /temp_voice.mp3
+
+code_versions/
+runs_old.zip

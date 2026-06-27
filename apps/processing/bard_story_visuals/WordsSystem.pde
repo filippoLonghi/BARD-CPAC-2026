@@ -1,3 +1,8 @@
+final float SENTENCE_STABLE_FRACTION = 0.35f;
+final int SENTENCE_MIN_STABLE_MS = 1200;
+final int SENTENCE_MAX_STABLE_MS = 4000;
+final int SENTENCE_FLIGHT_BUFFER_MS = 3000;
+
 class WordsSystem {
   ArrayList<SentenceDisplay> scheduled = new ArrayList<SentenceDisplay>();
   int sentenceCounter = 0;
@@ -35,7 +40,11 @@ class WordsSystem {
 
       // Reserve a real stable-reading interval. Short sentences assemble faster;
       // long sentences keep up to 22% of their proportional slot for reading.
-      int stableMs = constrain(round(slotMs * 0.22f), 1200, 2400); // tempo di lettura in cui le parole stan ferme
+      int stableMs = constrain(
+        round(slotMs * SENTENCE_STABLE_FRACTION),
+        SENTENCE_MIN_STABLE_MS,
+        SENTENCE_MAX_STABLE_MS
+      ); // tempo di lettura in cui le parole stan ferme
       stableMs = min(stableMs, max(1, slotMs - 100));
       int assemblyMs = max(1, slotMs - stableMs); // tempo in cui le parole si assemblano
       scheduled.add(

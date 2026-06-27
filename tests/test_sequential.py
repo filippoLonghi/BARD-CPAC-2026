@@ -15,6 +15,7 @@ from bard_core.contracts import ImageAsset, MusicSegment, StoryFragment
 from bard_core.pipeline_sequential import _processing_visible_path, _validate_scene_ready
 from bard_core.story.gemini_story import _word_count, narrative_phase
 from bard_core.story.music_translation import translate_music_to_story_cues_local
+from bard_core.utils import choose_balanced_fragment_count, music_window_plan, target_story_words_from_wpm
 
 
 class SequentialPipelineTests(TestCase):
@@ -34,6 +35,62 @@ class SequentialPipelineTests(TestCase):
             self.assertEqual([round(chunk.start_s, 3) for chunk in chunks], [0.0, 1.0, 2.0])
             self.assertEqual([round(chunk.end_s, 3) for chunk in chunks], [1.0, 2.0, 3.0])
             self.assertTrue(all(chunk.path.exists() for chunk in chunks))
+
+    def test_automatic_balanced_fragment_count_avoids_tiny_final_fragment(self) -> None:
+        self.assertEqual(choose_balanced_fragment_count(90.0), 2)
+        self.assertEqual(choose_balanced_fragment_count(115.0), 2)
+        self.assertEqual(choose_balanced_fragment_count(183.9), 3)
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "input.wav"
+            with wave.open(str(audio), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(10)
+                wav.writeframes(b"\x00\x00" * 1839)
+
+            chunks = split_audio_file(
+                audio,
+                root / "chunks",
+                fragment_count=choose_balanced_fragment_count(183.9),
+            )
+
+            self.assertEqual(len(chunks), 3)
+            self.assertEqual(round(chunks[0].end_s - chunks[0].start_s, 1), 61.3)
+            self.assertEqual(round(chunks[-1].end_s, 1), 183.9)
+            self.assertGreater(chunks[-1].end_s - chunks[-1].start_s, 50.0)
+
+    def test_explicit_chunk_seconds_preserves_fixed_size_behavior(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "input.wav"
+            with wave.open(str(audio), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(10)
+                wav.writeframes(b"\x00\x00" * 1839)
+
+            chunks = split_audio_file(audio, root / "chunks", chunk_s=60)
+
+            self.assertEqual(len(chunks), 4)
+            self.assertEqual(round(chunks[-1].end_s - chunks[-1].start_s, 1), 3.9)
+            self.assertEqual(round(chunks[-1].end_s, 1), 183.9)
+
+    def test_story_words_use_story_wpm_without_text_coverage(self) -> None:
+        self.assertEqual(target_story_words_from_wpm(60.0, 70.0), 70)
+        self.assertEqual(target_story_words_from_wpm(45.0, 70.0), 52)
+
+    def test_music_window_plan_derives_windows_per_fragment(self) -> None:
+        window_s, count = music_window_plan(45.0, fixed_window_s=None, windows_per_fragment=4)
+
+        self.assertEqual(count, 4)
+        self.assertEqual(window_s, 11.25)
+
+        fixed_window_s, fixed_count = music_window_plan(45.0, fixed_window_s=15.0, windows_per_fragment=4)
+
+        self.assertEqual(fixed_window_s, 15.0)
+        self.assertEqual(fixed_count, 3)
 
     def test_audio_conversion_creates_processing_compatible_wav(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -92,6 +149,21 @@ class SequentialPipelineTests(TestCase):
         self.assertEqual([segment.id for segment in segments], [9, 10, 11, 12])
         self.assertEqual([segment.start_s for segment in segments], [120, 135, 150, 165])
         self.assertEqual(segments[-1].end_s, 180)
+
+    def test_processing_text_timing_constants_are_exposed(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        words_source = (root / "apps" / "processing" / "bard_story_visuals" / "WordsSystem.pde").read_text(
+            encoding="utf-8"
+        )
+        sentence_source = (root / "apps" / "processing" / "bard_story_visuals" / "SentenceDisplay.pde").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("SENTENCE_STABLE_FRACTION = 0.22f", words_source)
+        self.assertIn("SENTENCE_MIN_STABLE_MS = 1200", words_source)
+        self.assertIn("SENTENCE_MAX_STABLE_MS = 2400", words_source)
+        self.assertIn("SENTENCE_FLIGHT_BUFFER_MS = 2000", words_source)
+        self.assertIn("SENTENCE_FLIGHT_BUFFER_MS", sentence_source)
 
     def test_music_to_story_mapping_is_local_and_tracks_small_changes(self) -> None:
         segments = [

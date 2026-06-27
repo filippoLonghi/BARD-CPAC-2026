@@ -82,11 +82,23 @@ def target_story_words(
     minimum: int = 12,
     maximum: int = 150,
 ) -> int:
-    """Reserve part of the segment for word animation and comprehension."""
+    """Legacy helper kept for older entry points that still pass text coverage."""
     safe_duration = max(1.0, duration_s)
     safe_wpm = max(30.0, reading_wpm)
     safe_coverage = max(0.25, min(coverage, 0.95))
     return max(minimum, min(maximum, round(safe_duration * safe_wpm / 60.0 * safe_coverage)))
+
+
+def target_story_words_from_wpm(
+    duration_s: float,
+    story_wpm: float,
+    *,
+    minimum: int = 12,
+    maximum: int = 150,
+) -> int:
+    safe_duration = max(1.0, duration_s)
+    safe_wpm = max(20.0, story_wpm)
+    return max(minimum, min(maximum, round(safe_duration * safe_wpm / 60.0)))
 
 
 def story_chunk_seconds(target_words: int, reading_wpm: float, coverage: float = 0.72) -> float:
@@ -94,6 +106,54 @@ def story_chunk_seconds(target_words: int, reading_wpm: float, coverage: float =
     safe_wpm = max(30.0, reading_wpm)
     safe_coverage = max(0.25, min(coverage, 0.95))
     return max(8.0, safe_words * 60.0 / (safe_wpm * safe_coverage))
+
+
+def choose_balanced_fragment_count(
+    duration_s: float | None,
+    *,
+    target_s: float = 60.0,
+    min_s: float = 50.0,
+    max_s: float = 70.0,
+    short_audio_threshold_s: float = 120.0,
+) -> int:
+    if duration_s is None or duration_s <= 0:
+        return 1
+    safe_target = max(1.0, target_s)
+    safe_min = max(1.0, min_s)
+    safe_max = max(safe_min, max_s)
+    safe_short = max(safe_target, short_audio_threshold_s)
+
+    if duration_s <= safe_short:
+        return 1 if duration_s <= safe_target * 1.25 else 2
+
+    estimated = max(1, round(duration_s / safe_target))
+    upper = max(estimated + 3, math.ceil(duration_s / safe_min) + 1)
+    candidates = range(max(1, estimated - 3), upper + 1)
+
+    def score(count: int) -> tuple[float, int]:
+        fragment_s = duration_s / count
+        penalty = abs(fragment_s - safe_target)
+        if fragment_s < safe_min:
+            penalty += (safe_min - fragment_s) * 3.0
+        if fragment_s > safe_max:
+            penalty += (fragment_s - safe_max) * 3.0
+        return penalty, count
+
+    return min(candidates, key=score)
+
+
+def music_window_plan(
+    fragment_duration_s: float,
+    *,
+    fixed_window_s: float | None,
+    windows_per_fragment: int,
+) -> tuple[float, int]:
+    duration = max(0.001, fragment_duration_s)
+    if fixed_window_s is not None:
+        window_s = max(0.001, fixed_window_s)
+        return window_s, max(1, round(duration / window_s))
+    count = max(1, windows_per_fragment)
+    return duration / count, count
 
 
 def parse_time_span(text: str) -> tuple[float | None, float | None]:

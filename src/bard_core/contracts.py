@@ -5,9 +5,39 @@ from pathlib import Path
 from typing import Any
 import json
 
+MOOD_LABELS: list[str] = [
+    "DARK",
+    "CALM",
+    "ANXIOUS",
+    "DENSE",
+    "RISING TENSION",
+    "RELEASE",
+    "BRIGHT",
+    "SPARSE",
+]
+
+IMAGE_ASSET_ROLES: list[str] = ["background", "subject"]
 
 
-MOOD_LABELS: list[str] = [ "DARK", "CALM", "ANXIOUS", "DENSE", "RISING TENSION", "RELEASE", "BRIGHT", "SPARSE", ]
+def normalize_mood_label(value: object) -> str:
+    mood = str(value or "").upper().strip()
+    return mood if mood in MOOD_LABELS else "CALM"
+
+
+def normalize_image_role(value: object) -> str | None:
+    role = str(value or "").strip().lower()
+    return role if role in IMAGE_ASSET_ROLES else None
+
+
+def order_image_assets(assets: list["ImageAsset"]) -> list["ImageAsset"]:
+    by_role: dict[str, ImageAsset] = {}
+    for asset in assets:
+        role = normalize_image_role(asset.role)
+        if role is None or role in by_role:
+            continue
+        asset.role = role
+        by_role[role] = asset
+    return [by_role[role] for role in IMAGE_ASSET_ROLES if role in by_role]
 
 @dataclass
 class ImageAsset:
@@ -77,8 +107,7 @@ class StoryFragment:
     image_assets: list[ImageAsset] = field(default_factory=list)
 
     def normalized_mood(self) -> str:
-        mood = (self.mood or "").upper().strip()
-        return mood if mood in MOOD_LABELS else "CALM"
+        return normalize_mood_label(self.mood)
 
 
 @dataclass
@@ -160,7 +189,7 @@ def story_fragments_from_json(path: Path) -> list[StoryFragment]:
         fragments.append(
             StoryFragment(
                 id=int(item.get("id", idx + 1)),
-                mood=str(item.get("mood", "CALM")).upper(),
+                mood=normalize_mood_label(item.get("mood", "CALM")),
                 text=str(item.get("text", "")),
                 music_prompt=item.get("music_prompt"),
                 start_s=item.get("start_s"),
@@ -187,12 +216,15 @@ def image_assets_from_json(raw_assets: Any) -> list[ImageAsset]:
     for raw in raw_assets:
         if not isinstance(raw, dict):
             continue
+        role = normalize_image_role(raw.get("role") or "background")
+        if role is None:
+            continue
         prompt = str(raw.get("prompt", "")).strip()
         if not prompt:
             continue
         assets.append(
             ImageAsset(
-                role=str(raw.get("role") or "background").strip().lower(),
+                role=role,
                 label=str(raw.get("label") or raw.get("role") or "visual asset").strip(),
                 prompt=prompt,
                 search_query=raw.get("search_query"),
@@ -208,4 +240,4 @@ def image_assets_from_json(raw_assets: Any) -> list[ImageAsset]:
                 error=raw.get("error"),
             )
         )
-    return assets
+    return order_image_assets(assets)

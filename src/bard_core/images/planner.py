@@ -2,31 +2,34 @@ from __future__ import annotations
 
 import re
 
-from ..contracts import ImageAsset, StoryFragment
+from ..contracts import IMAGE_ASSET_ROLES, ImageAsset, StoryFragment, normalize_image_role, order_image_assets
 
 
-VALID_IMAGE_ROLES = {"background", "subject", "symbol"}
+VALID_IMAGE_ROLES = set(IMAGE_ASSET_ROLES)
 
 
 def ensure_fragment_image_assets(fragment: StoryFragment, max_assets: int) -> list[ImageAsset]:
     """Return planned assets, preserving old single-prompt story outputs."""
-    limit = max(1, max_assets)
-    existing = [normalize_asset(asset) for asset in fragment.image_assets if asset.prompt.strip()]
+    limit = max(1, min(max_assets, len(IMAGE_ASSET_ROLES)))
+    existing = order_image_assets([
+        normalize_asset(asset)
+        for asset in fragment.image_assets
+        if asset.prompt.strip() and normalize_image_role(asset.role or "background") is not None
+    ])
     if existing:
         existing_roles = {asset.role for asset in existing}
         supplements = [
             asset for asset in default_assets_from_fragment(fragment) if asset.role not in existing_roles
         ]
-        fragment.image_assets = (existing + supplements)[:limit]
+        fragment.image_assets = order_image_assets(existing + supplements)[:limit]
         return fragment.image_assets
 
-    fragment.image_assets = default_assets_from_fragment(fragment)
+    fragment.image_assets = order_image_assets(default_assets_from_fragment(fragment))
     return fragment.image_assets[:limit]
 
 
 def normalize_asset(asset: ImageAsset) -> ImageAsset:
-    role = (asset.role or "background").strip().lower()
-    asset.role = role if role in VALID_IMAGE_ROLES else "background"
+    asset.role = normalize_image_role(asset.role or "background") or "background"
     asset.label = (asset.label or asset.role or "visual asset").strip()
     if not asset.search_query:
         asset.search_query = asset.label
@@ -76,18 +79,8 @@ def default_assets_from_fragment(fragment: StoryFragment) -> list[ImageAsset]:
             role="subject",
             label=f"{motif} subject",
             prompt=(
-                f"One recognizable non-human fairy-tale subject from this scene: {fragment.text[:180]}. "
-                "Isolated unfinished painterly children's-book style, dark empty background, no text."
-            ),
-            search_query=motif,
-            negative_prompt=default_negative_prompt(),
-        ),
-        ImageAsset(
-            role="symbol",
-            label=f"{motif} symbol",
-            prompt=(
-                f"One simple magical symbol or object representing {fragment.visual_motif or fragment.text[:120]}. "
-                "Isolated unfinished painterly children's-book style, dark empty background, no text."
+                f"One recognizable non-human symbolic adventure subject from this scene: {fragment.text[:180]}. "
+                "Isolated unfinished painterly children's-book style, plain simple background for backend cutout, no text."
             ),
             search_query=motif,
             negative_prompt=default_negative_prompt(),

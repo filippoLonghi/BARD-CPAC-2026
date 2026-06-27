@@ -19,9 +19,18 @@ $GCP_KEY=(Resolve-Path "..\Project\secrets\bard-gcp-key.json").Path
 $env:BARD_HOST_WORKSPACE=$PWD.Path
 
 docker compose build bard
+docker compose run --rm bard --help
 ```
 
 Rebuild after Python dependency or Dockerfile changes. Ordinary runs reuse `bard-cpac:local`.
+The Docker image installs the normal pipeline, OSC, Google providers, dev test runner, and
+background-removal stack: `rembg`, `onnxruntime`, and `Pillow`.
+
+Run tests in the same dependency environment with:
+
+```powershell
+docker compose run --rm --entrypoint python bard -m pytest
+```
 
 ## Complete Imagen Test
 
@@ -38,17 +47,17 @@ docker compose run --rm --service-ports `
   --story-level early-reader `
   --generate-images `
   --image-provider imagen `
-  --max-image-assets 3 `
+  --max-image-assets 2 `
   --playback processing `
   --send-osc `
   --out-dir /workspace/runs/dark-suspense-docker-imagen
 ```
 
 This is a paid test. `dark_suspense.ogg` is about 140 seconds, so the defaults produce three scenes
-and nine images. The Imagen portion is approximately `$0.18`:
+and six images. The Imagen portion is approximately `$0.12`:
 
 ```text
-number of scenes * 3 * $0.02
+number of scenes * 2 * $0.02
 ```
 
 The command prints the planned call count before cloud work begins.
@@ -86,6 +95,8 @@ at `/workspace`, while Processing receives paths under the real Windows reposito
 - OSC output to `host.docker.internal:5005`;
 - UDP readiness replies through published port `5007`;
 - `BARD_OSC_READY_BIND_HOST=0.0.0.0` inside the container;
+- `BARD_REMOVE_IMAGE_BACKGROUND=true`;
+- `BARD_BACKGROUND_REMOVAL_PROVIDER=rembg`;
 - `runs/` as a bind-mounted local output directory.
 
 Only one BARD container using `--service-ports` can own UDP port 5007 at a time.
@@ -96,6 +107,17 @@ The command mounts the JSON key read-only and overrides any Windows credential p
 `bard-local.env`. The project ID, regions, models, bucket, and story defaults still come from that env
 file. Never copy credentials into the Docker image or repository.
 
+For the current Europe-compatible Google image setup, keep these in the env file unless you have
+verified a different model/location:
+
+```env
+BARD_IMAGE_PROVIDER=imagen
+BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001
+BARD_IMAGE_LOCATION=europe-west1
+BARD_IMAGEN_MODEL=imagen-4.0-fast-generate-001
+BARD_IMAGEN_LOCATION=europe-west1
+```
+
 For a keyless team setup, each member can instead mount their Application Default Credentials file
 to `/secrets/application_default_credentials.json` and set `GOOGLE_APPLICATION_CREDENTIALS` to that
 container path.
@@ -104,6 +126,11 @@ container path.
 
 Results remain visible on Windows under the selected `runs/<name>/` directory because the repository
 is bind-mounted. Docker additionally creates `processing_audio.wav` for host Processing playback.
+
+Generated image assets contain only `background` and `subject`. Symbol images are intentionally
+disabled for now. Python removes the background only from generated `subject` assets and writes
+transparent PNGs before Processing receives them; `background` assets remain full-frame. The
+Processing visual layout, timing, and stale-image persistence behavior are intentionally unchanged.
 
 If `BARD_STORAGE_BUCKET` is set, the current sequential runner also uploads the completed run
 directory to `gs://<bucket>/runs/<run-id>/`. Remove or leave that setting empty when you want a

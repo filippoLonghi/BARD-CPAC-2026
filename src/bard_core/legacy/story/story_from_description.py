@@ -12,7 +12,10 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 
-MOOD_LABELS = ["ENERGETIC", "SOLO", "CALM", "DEEP", "DISSONANT", "ANXIOUS"]
+try:
+    from bard_core.contracts import MOOD_LABELS
+except ImportError:  # pragma: no cover - keeps direct script use possible before editable install
+    MOOD_LABELS = ["DARK", "CALM", "ANXIOUS", "DENSE", "RISING TENSION", "RELEASE", "BRIGHT", "SPARSE"]
 
 
 # ---------- small utilities ----------
