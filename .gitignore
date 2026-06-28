@@ -13,6 +13,7 @@ credentials/
 secrets/
 *.key.json
 *-key.json
+.codex_tmp*/
 
 # Generated pipeline outputs
 runs/
