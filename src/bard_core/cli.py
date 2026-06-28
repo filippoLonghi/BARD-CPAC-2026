@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 import sys
 
@@ -9,27 +9,15 @@ from .config import BardSettings, load_env_file
 from .contracts import ImageAsset, PipelineResult, StoryFragment, story_fragments_from_json, write_json
 from .audio import convert_audio_to_wav
 from .images import generate_images_for_fragments
-from .pipeline import make_run_id, run_pipeline
 from .pipeline_sequential import run_sequential_pipeline
 from .transport import send_fragments_to_processing
+from .utils import make_run_id
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="BARD cloud-ready pipeline tools.")
     parser.add_argument("--env-file", default=None, help="Optional .env file. Keep real secret paths outside git.")
     sub = parser.add_subparsers(dest="command", required=True)
-
-    run = sub.add_parser("run-local", help="Run audio analysis, story generation, and optional OSC output.")
-    run.add_argument("--audio", required=True, help="Audio file path.")
-    run.add_argument("--ratio", default="1/5", help="Chunk size as ratio of duration, for example 1/5.")
-    run.add_argument("--audio-provider", choices=["clap", "gemini"], default=None)
-    run.add_argument("--story-provider", choices=["local", "mistral", "vertex", "gemini"], default=None)
-    run.add_argument("--generate-images", action="store_true", help="Generate or retrieve image assets after story output.")
-    run.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
-    run.add_argument("--max-image-assets", type=int, default=None, help="Maximum image assets per fragment.")
-    run.add_argument("--send-osc", action="store_true", help="Send generated story fragments to Processing.")
-    _add_story_style_arguments(run)
-    run.add_argument("--out-dir", default=None, help="Optional output directory for this run.")
 
     sequential = sub.add_parser(
         "run-fragments",
@@ -109,6 +97,16 @@ def build_parser() -> argparse.ArgumentParser:
     sequential.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
     sequential.add_argument("--max-image-assets", type=int, default=2)
     sequential.add_argument("--send-osc", action="store_true")
+    sequential.add_argument(
+        "--debug-artifacts",
+        action="store_true",
+        help="Write verbose debug files under debug/ in addition to compact story.json and run_manifest.json.",
+    )
+    sequential.add_argument(
+        "--keep-audio-chunks",
+        action="store_true",
+        help="Keep per-fragment WAV chunks under audio_chunks/ for debugging.",
+    )
     sequential.add_argument("--out-dir", default=None)
 
     images = sub.add_parser("generate-images", help="Generate/retrieve image assets without running audio/story.")
@@ -116,11 +114,20 @@ def build_parser() -> argparse.ArgumentParser:
     images.add_argument("--fake-card", action="store_true", help="Use a built-in fake story card for quick testing.")
     images.add_argument("--fake-card-name", default="cat-wood-sun", help="Built-in fake card name.")
     images.add_argument("--list-fake-cards", action="store_true", help="List available built-in fake cards.")
-    images.add_argument("--write-input-only", action="store_true", help="Write scene_cards.json and exit without images.")
+    images.add_argument(
+        "--write-input-only",
+        action="store_true",
+        help="Write debug/scene_cards.json and exit without images.",
+    )
     images.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], required=True)
     images.add_argument("--max-image-assets", type=int, default=None, help="Maximum image assets per fragment.")
     images.add_argument("--send-osc", action="store_true", help="Send the generated image assets to Processing.")
     images.add_argument("--duration", type=float, default=10.0, help="OSC slide duration when --send-osc is used.")
+    images.add_argument(
+        "--debug-artifacts",
+        action="store_true",
+        help="Write verbose image debugging files under debug/.",
+    )
     images.add_argument("--out-dir", default=None, help="Optional output directory for this image-only run.")
 
     osc = sub.add_parser("send-osc", help="Send an existing story.json to Processing.")
@@ -148,24 +155,6 @@ def main(argv: list[str] | None = None) -> None:
     settings = BardSettings.from_env()
     settings = _settings_with_story_overrides(settings, args)
 
-    if args.command == "run-local":
-        result = run_pipeline(
-            audio_path=Path(args.audio),
-            settings=settings,
-            ratio=args.ratio,
-            audio_provider=args.audio_provider,
-            story_provider=args.story_provider,
-            generate_images=args.generate_images,
-            image_provider=args.image_provider,
-            max_image_assets=args.max_image_assets,
-            send_osc=args.send_osc,
-            output_dir=Path(args.out_dir).expanduser() if args.out_dir else None,
-        )
-        print(f"Run complete: {result.run_id}")
-        print(f"Fragments: {len(result.fragments)}")
-        print(f"Output root: {settings.output_dir}")
-        return
-
     if args.command == "run-fragments":
         result = run_sequential_pipeline(
             audio_path=Path(args.audio),
@@ -188,6 +177,8 @@ def main(argv: list[str] | None = None) -> None:
             max_image_assets=args.max_image_assets,
             send_osc=args.send_osc,
             output_dir=Path(args.out_dir).expanduser() if args.out_dir else None,
+            debug_artifacts=args.debug_artifacts,
+            keep_audio_chunks=args.keep_audio_chunks,
         )
         print(f"Sequential run complete: {result.run_id}")
         print(f"Fragments: {len(result.fragments)}")
@@ -213,9 +204,9 @@ def main(argv: list[str] | None = None) -> None:
         )
         run_id = make_run_id()
         destination = Path(args.out_dir).expanduser() if args.out_dir else settings.output_dir / f"{run_id}-images"
-        scene_cards_path = destination / "scene_cards.json"
-        write_json(scene_cards_path, scene_cards_from_fragments(fragments))
         if args.write_input_only:
+            scene_cards_path = destination / "debug" / "scene_cards.json"
+            write_json(scene_cards_path, scene_cards_from_fragments(fragments))
             print(f"Wrote image input scene cards: {scene_cards_path}")
             return
 
@@ -226,9 +217,15 @@ def main(argv: list[str] | None = None) -> None:
             provider=args.image_provider,
             max_assets=args.max_image_assets or settings.max_image_assets,
         )
-        write_json(scene_cards_path, scene_cards_from_fragments(fragments))
-        write_json(destination / "story.json", story_json_from_fragments(fragments))
-        write_json(destination / "image_manifest.json", image_manifest_from_fragments(fragments, metadata))
+        result = PipelineResult(
+            run_id=run_id,
+            audio_path="image-only",
+            music_segments=[],
+            fragments=fragments,
+            full_story="\n\n".join(fragment.text for fragment in fragments),
+            metadata={"execution_mode": "image-only", **metadata},
+        )
+        result.write(destination, debug_artifacts=args.debug_artifacts)
         if args.send_osc:
             send_fragments_to_processing(
                 fragments=fragments,
@@ -244,7 +241,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Fragments: {len(fragments)}")
         print(f"Output directory: {destination}")
         print(f"Images directory: {destination / 'images'}")
-        print(f"Manifest: {destination / 'image_manifest.json'}")
+        print(f"Manifest: {destination / 'run_manifest.json'}")
         return
 
     if args.command == "send-osc":
@@ -281,7 +278,7 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def normalize_argv(argv: list[str]) -> list[str]:
-    commands = {"run-local", "run-fragments", "generate-images", "send-osc"}
+    commands = {"run-fragments", "generate-images", "send-osc"}
     normalized: list[str] = []
     idx = 0
     while idx < len(argv):
@@ -477,7 +474,10 @@ def image_manifest_from_fragments(fragments: list[StoryFragment], metadata: dict
 
 
 def story_json_from_fragments(fragments: list[StoryFragment]) -> dict[str, object]:
-    return {
-        "fragments": [asdict(fragment) for fragment in fragments],
-        "full_story": "\n\n".join(fragment.text for fragment in fragments),
-    }
+    return PipelineResult(
+        run_id="story-fragments",
+        audio_path="unknown",
+        music_segments=[],
+        fragments=fragments,
+        full_story="\n\n".join(fragment.text for fragment in fragments),
+    ).replay_story_json()

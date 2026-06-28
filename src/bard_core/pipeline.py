@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 
 from .audio import analyze_with_clap, analyze_with_gemini
@@ -14,11 +13,7 @@ from .story import (
 )
 from .storage import upload_directory_to_gcs
 from .transport import send_fragments_to_processing
-from .utils import compute_chunk_and_words, detect_audio_duration, estimate_segment_count
-
-
-def make_run_id() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+from .utils import compute_chunk_and_words, detect_audio_duration, estimate_segment_count, make_run_id
 
 
 def run_pipeline(

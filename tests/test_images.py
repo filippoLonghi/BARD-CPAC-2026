@@ -27,6 +27,7 @@ from bard_core.images.generator import generate_images_for_fragments
 from bard_core.images.background_removal import postprocess_generated_image_asset, remove_background_to_alpha
 from bard_core.images.openverse_provider import _query_candidates, _query_for_asset
 from bard_core.images.planner import ensure_fragment_image_assets
+from bard_core.progress import PipelineTracer
 from bard_core.transport.osc_sender import ProcessingOscStream, prepare_audio_playback, send_fragments_to_processing
 
 
@@ -199,6 +200,39 @@ class ImageAssetTests(TestCase):
         self.assertEqual(metadata["generated_image_assets"], 2)
         self.assertEqual(fragment.image_assets[0].status, "generated")
         self.assertEqual(fragment.image_assets[0].model, "black-forest-labs/flux-schnell")
+
+    def test_image_trace_accepts_asset_label_field(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            fragment = StoryFragment(
+                id=1,
+                mood="CALM",
+                text="A signal opens.",
+                image_assets=[ImageAsset(role="subject", label="signal mask", prompt="signal mask")],
+            )
+            tracer = PipelineTracer(enabled=False)
+
+            def fake_generate(asset: ImageAsset, output_base_path: Path, settings: BardSettings) -> ImageAsset:
+                output_path = output_base_path.with_suffix(".png")
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(b"fake")
+                asset.status = "generated"
+                asset.local_path = str(output_path)
+                return asset
+
+            with patch("bard_core.images.generator.generate_replicate_image", side_effect=fake_generate):
+                metadata = generate_images_for_fragments(
+                    [fragment],
+                    test_settings(tmp_path),
+                    tmp_path / "images",
+                    provider="replicate",
+                    max_assets=2,
+                    print_estimate=False,
+                    tracer=tracer,
+                )
+
+        self.assertEqual(metadata["failed_image_assets"], 0)
+        self.assertTrue(any(event.get("asset_label") == "signal mask" for event in tracer.to_json()))
 
     def test_background_removal_fallback_writes_rgba_png(self) -> None:
         try:
@@ -429,7 +463,7 @@ class ImageAssetTests(TestCase):
         self.assertEqual(fragment.image_assets[0].status, "failed")
         self.assertEqual(fragment.image_assets[0].error, "no token")
 
-    def test_scene_cards_and_story_json_serialize_image_assets(self) -> None:
+    def test_compact_story_and_debug_artifacts_serialize_image_assets(self) -> None:
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             fragment = StoryFragment(
@@ -455,12 +489,20 @@ class ImageAssetTests(TestCase):
             )
             result.write(tmp_path)
 
-            cards = (tmp_path / "scene_cards.json").read_text(encoding="utf-8")
-            self.assertIn('"image_assets"', cards)
-            self.assertIn('"story_text": "A cat waits."', cards)
+            self.assertTrue((tmp_path / "story.json").exists())
+            self.assertTrue((tmp_path / "run_manifest.json").exists())
+            self.assertFalse((tmp_path / "scene_cards.json").exists())
+            story = (tmp_path / "story.json").read_text(encoding="utf-8")
+            self.assertIn('"schema": "bard.replay_story"', story)
+            self.assertNotIn("music_prompt", story)
 
             loaded = story_fragments_from_json(tmp_path / "story.json")
             self.assertEqual(loaded[0].image_assets[0].label, "cat")
+
+            result.write(tmp_path, debug_artifacts=True)
+            cards = (tmp_path / "debug" / "scene_cards.json").read_text(encoding="utf-8")
+            self.assertIn('"image_assets"', cards)
+            self.assertIn('"story_text": "A cat waits."', cards)
 
     def test_osc_sender_emits_image_paths(self) -> None:
         with TemporaryDirectory() as tmp:

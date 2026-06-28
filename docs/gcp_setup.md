@@ -3,8 +3,7 @@
 These steps are written for Windows PowerShell and the current repo structure.
 
 For the current complete `run-fragments` pipeline, Processing replay, image-provider commands, and
-parameter effects, use [running_the_pipeline.md](running_the_pipeline.md). `run-local` examples in
-this setup document describe the older prototype path.
+parameter effects, use [running_the_pipeline.md](running_the_pipeline.md).
 
 Assumed local folder layout:
 
@@ -250,11 +249,8 @@ python -m pip install -e ".[api,cloud]"
 
 If `py` is not available, install Python and use `python -m venv .venv` instead.
 
-Use `local-ai` later only if you want to run CLAP/Mistral on your machine:
-
-```powershell
-python -m pip install -e ".[local-ai]"
-```
+The active project path uses the cloud/Vertex providers. The old local batch prototype is legacy-only
+and is not exposed as a supported CLI command.
 
 If the virtual environment gets confused after Python reinstall and you see `Unable to create process`, recreate it:
 
@@ -304,18 +300,7 @@ Usually leave this commented because local development uses `gcloud auth applica
 
 ## 9. Optional Hugging Face Token For Local Models
 
-You do not need a Hugging Face token for the recommended GCP/Vertex path.
-
-You may need or want one for the local path:
-
-```powershell
-python -m bard_core run-local --audio data/audio/audio.mp3 --audio-provider clap --story-provider local
-```
-
-Why:
-
-- CLAP downloads from Hugging Face and can work without a token, but a token gives better rate limits.
-- Mistral models may require accepting model terms on Hugging Face and using a token.
+You do not need a Hugging Face token for the supported GCP/Vertex path.
 
 Steps:
 
@@ -336,17 +321,9 @@ huggingface-cli login
 
 Never commit the token to the repo.
 
-## 10. Optional Local GPU Setup
+## 10. Optional Local GPU Check
 
 This project does not require local GPU for the recommended GCP/Vertex path.
-
-Local GPU is only useful for:
-
-```powershell
-python -m bard_core run-local --audio data/audio/audio.mp3 --audio-provider clap --story-provider local
-```
-
-That path runs CLAP and Mistral on your laptop. It needs an NVIDIA CUDA GPU and a CUDA-enabled PyTorch build. If PyTorch cannot see CUDA, it will use CPU and can sit at 95-100% CPU for a long time.
 
 Check whether PyTorch sees the GPU:
 
@@ -367,7 +344,7 @@ Then verify again:
 python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no cuda device')"
 ```
 
-8GB VRAM may still be tight for Mistral 7B, so the recommended project path remains Vertex AI.
+The recommended project path remains Vertex AI.
 
 ## 11. Run The Pipeline Locally
 
@@ -378,17 +355,15 @@ $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --out-dir runs\gcp-smoke-test
 ```
 
 This should create a new folder under `runs/` with:
 
 ```text
-result.json
-music_segments.json
 story.json
-full_story.txt
+run_manifest.json
 ```
 
 If you see this error on a brand-new project:
@@ -403,7 +378,7 @@ Processing/OSC path, only after opening `apps/processing/bard_story_visuals` in 
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --generate-images `
   --image-provider openverse `
   --send-osc `
@@ -419,13 +394,6 @@ Image generation notes:
 - Do not switch to a newer model unless it is verified in the configured GCP location.
 - Generated subject images are cut out in Python before Processing receives them. Docker installs
   `rembg`, `onnxruntime`, and `Pillow` for that step.
-
-Prototype-compatible path, using local CLAP and local Mistral:
-
-```powershell
-python -m pip install -e ".[local-ai]"
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider clap --story-provider local
-```
 
 ## 12. Build And Deploy To Cloud Run
 
@@ -495,7 +463,7 @@ $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --out-dir runs\vertex-orchestrator-test
 ```
 
@@ -503,7 +471,7 @@ Then, with Processing open, test the live OSC bridge:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --generate-images `
   --image-provider openverse `
   --send-osc `

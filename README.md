@@ -52,7 +52,7 @@ $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
@@ -66,14 +66,14 @@ Expected output:
 
 ```text
 runs/arabesque-complete/
-  result.json
-  music_segments.json
   story.json
-  scene_cards.json
-  full_story.txt
-  audio_chunks/
+  run_manifest.json
   images/
 ```
+
+Normal runs write compact replay data in `story.json` and technical/debug metadata, including the
+elapsed timing trace, in `run_manifest.json`. Add `--debug-artifacts` to also write verbose legacy
+debug files under `debug/`, and `--keep-audio-chunks` to preserve per-fragment WAV chunks.
 
 ## Processing Replay Without APIs
 
@@ -88,7 +88,7 @@ Press Run in Processing first, then replay the saved result:
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
   --story-json runs\arabesque-hybrid-test\story.json `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --include-images `
   --delay 0
 ```
@@ -108,9 +108,12 @@ Current OSC messages:
 /finish
 ```
 
-For an uploaded-audio demo, BARD starts the original music and Processing after scene 1 has complete
-story text, usable images, and a short OSC ingestion delay. Later scenes generate during playback. Complete story sentences appear continuously
-in changing screen positions; internal fragment boundaries only control mood and image timing.
+For an uploaded-audio demo, BARD plans fragment boundaries first, then prepares fragment 1 only:
+temporary audio chunk, Gemini audio observation, story text, and the two required image assets
+(`background` and `subject`). Processing is primed and `/start` is sent only after fragment 1 is
+complete. Fragment 2 and later are prepared while playback is already running. If a later fragment is
+late or incomplete, Python logs the delay and keeps the current Processing scene rather than sending a
+placeholder or incomplete visual.
 
 The default hybrid plan keeps approximately 15-second timestamped music observations but groups them
 into approximately 60-second story/image scenes. This preserves small musical changes without paying
@@ -130,17 +133,6 @@ DARK, CALM, ANXIOUS, DENSE, RISING TENSION, RELEASE, BRIGHT, SPARSE
 This list is shared exactly between `src/bard_core/contracts.py` and Processing `MoodManager.pde`.
 Invalid Python moods normalize to `CALM` before OSC.
 
-## Optional Local Prototype Path
-
-The old hackathon-like local mode is still available:
-
-```powershell
-python -m pip install -e ".[local-ai]"
-python -m bard_core --env-file "$ENV_FILE" run-local --audio data/audio/audio.mp3 --audio-provider clap --story-provider local
-```
-
-This runs CLAP and Mistral locally. It can be slow on CPU and may require a CUDA-enabled PyTorch install plus a Hugging Face token. For the main project direction, prefer the Vertex/GCP path.
-
 ## Optional Image Keyframes
 
 Image assets are opt-in so normal runs do not spend money. Start with the free Openverse retrieval path:
@@ -159,7 +151,7 @@ python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-p
 python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-provider imagen
 ```
 
-See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, output files, and debugging.
+See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, compact output files, and debugging.
 
 Current generated image assets are only `background` and `subject`. Symbol images are intentionally
 disabled for now. Generated subject assets are cut out in Python into transparent PNGs before Processing

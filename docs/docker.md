@@ -42,7 +42,7 @@ docker compose run --rm --service-ports `
   -v "${GCP_KEY}:/secrets/gcp.json:ro" `
   -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp.json `
   bard --env-file /secrets/bard-local.env run-fragments `
-  --audio /workspace/data/test_audio/dark_suspense.ogg `
+  --audio /workspace/data/audio/dark_suspense.ogg `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
@@ -60,7 +60,8 @@ and six images. The Imagen portion is approximately `$0.12`:
 number of scenes * 2 * $0.02
 ```
 
-The command prints the planned call count before cloud work begins.
+The command prints elapsed trace lines for planning, first-fragment readiness, Processing priming,
+`/start`, and later fragment preparation.
 
 ## Free Openverse Test
 
@@ -125,7 +126,8 @@ container path.
 ## Outputs
 
 Results remain visible on Windows under the selected `runs/<name>/` directory because the repository
-is bind-mounted. Docker additionally creates `processing_audio.wav` for host Processing playback.
+is bind-mounted. Normal output is compact: `story.json`, `run_manifest.json`, and `images/`. Docker
+additionally creates `processing_audio.wav` for host Processing playback.
 
 Generated image assets contain only `background` and `subject`. Symbol images are intentionally
 disabled for now. Python removes the background only from generated `subject` assets and writes

@@ -123,4 +123,5 @@ The Processing visual layout, timing, and stale-image persistence are intentiona
 For the final performance, keep a procedural fallback live locally while cloud-generated assets arrive with a deliberate delay.
 
 Normal story runs keep `image_provider=none`. Pass `--generate-images --image-provider openverse|replicate|imagen`
-to create image assets. Each run writes `scene_cards.json`, which is the integration file for future live workers.
+to create image assets. Normal runs write compact `story.json` plus `run_manifest.json`; add
+`--debug-artifacts` for verbose `debug/scene_cards.json`.

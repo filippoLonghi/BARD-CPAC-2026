@@ -1,7 +1,8 @@
 # Mood And Genre Test Audio
 
-The local names describe sources or broad test contrasts, not ground-truth model labels. Always compare
-the saved WAV chunks with `music_segments.json`.
+The local names describe sources or broad test contrasts, not ground-truth model labels. Normal runs
+store audio-analysis details in `run_manifest.json`; add `--debug-artifacts --keep-audio-chunks` when
+you want `debug/music_segments.json` alongside saved WAV chunks.
 
 | Local file | Useful test | Duration | Creator | License | Source |
 |---|---|---:|---|---|---|

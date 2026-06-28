@@ -6,6 +6,7 @@ import re
 
 from ..config import BardSettings
 from ..contracts import ImageAsset, StoryFragment
+from ..progress import PipelineTracer
 from .background_removal import postprocess_generated_image_asset
 from .imagen_provider import generate_imagen_image
 from .openverse_provider import retrieve_openverse_image
@@ -24,6 +25,7 @@ def generate_images_for_fragments(
     provider: str,
     max_assets: int,
     print_estimate: bool = True,
+    tracer: PipelineTracer | None = None,
 ) -> dict[str, object]:
     provider = provider.lower().strip()
     if provider not in SUPPORTED_IMAGE_PROVIDERS:
@@ -37,21 +39,23 @@ def generate_images_for_fragments(
     estimate = estimate_image_cost(provider, planned_count)
     if print_estimate:
         print(estimate["message"])
+    if tracer:
+        tracer.log("IMAGES estimate", provider=provider, planned=planned_count, cost=estimate["estimated_cost_usd"])
 
     generated = 0
     failed = 0
-    jobs: list[tuple[str, ImageAsset, Path]] = []
+    jobs: list[tuple[str, int, ImageAsset, Path]] = []
     for fragment in fragments:
         for layer_index, asset in enumerate(fragment.image_assets[:max_assets]):
             asset.provider = provider
             asset.model = model_for_provider(provider, settings)
             output_base_path = output_dir / _asset_filename(fragment.id, layer_index, asset)
-            jobs.append((provider, asset, output_base_path))
+            jobs.append((provider, fragment.id, asset, output_base_path))
 
     with ThreadPoolExecutor(max_workers=min(3, max(1, len(jobs)))) as executor:
         futures = {
-            executor.submit(_generate_one, job_provider, asset, output_path, settings): asset
-            for job_provider, asset, output_path in jobs
+            executor.submit(_generate_one, job_provider, fragment_id, asset, output_path, settings, tracer): asset
+            for job_provider, fragment_id, asset, output_path in jobs
         }
         for future in as_completed(futures):
             asset = futures[future]
@@ -61,6 +65,8 @@ def generate_images_for_fragments(
             except Exception as exc:
                 asset.status = "failed"
                 asset.error = str(exc)
+                if tracer:
+                    tracer.log("IMAGE failed", role=asset.role, asset_label=asset.label, error=asset.error)
                 failed += 1
 
     return {
@@ -108,15 +114,39 @@ def model_for_provider(provider: str, settings: BardSettings) -> str:
     return provider
 
 
-def _generate_one(provider: str, asset: ImageAsset, output_base_path: Path, settings: BardSettings) -> ImageAsset:
+def _generate_one(
+    provider: str,
+    fragment_id: int,
+    asset: ImageAsset,
+    output_base_path: Path,
+    settings: BardSettings,
+    tracer: PipelineTracer | None,
+) -> ImageAsset:
+    if tracer:
+        tracer.log("IMAGE start", fragment=fragment_id, role=asset.role, asset_label=asset.label, provider=provider)
     if provider == "replicate":
         generated = generate_replicate_image(asset, output_base_path, settings)
-        return postprocess_generated_image_asset(generated, settings)
+        if tracer:
+            tracer.log("IMAGE generation done", fragment=fragment_id, role=asset.role, path=generated.local_path)
+            tracer.log("IMAGE postprocess start", fragment=fragment_id, role=asset.role)
+        processed = postprocess_generated_image_asset(generated, settings)
+        if tracer:
+            tracer.log("IMAGE postprocess done", fragment=fragment_id, role=asset.role, path=processed.local_path)
+        return processed
     if provider == "imagen":
         generated = generate_imagen_image(asset, output_base_path, settings)
-        return postprocess_generated_image_asset(generated, settings)
+        if tracer:
+            tracer.log("IMAGE generation done", fragment=fragment_id, role=asset.role, path=generated.local_path)
+            tracer.log("IMAGE postprocess start", fragment=fragment_id, role=asset.role)
+        processed = postprocess_generated_image_asset(generated, settings)
+        if tracer:
+            tracer.log("IMAGE postprocess done", fragment=fragment_id, role=asset.role, path=processed.local_path)
+        return processed
     if provider == "openverse":
-        return retrieve_openverse_image(asset, output_base_path, settings)
+        retrieved = retrieve_openverse_image(asset, output_base_path, settings)
+        if tracer:
+            tracer.log("IMAGE retrieval done", fragment=fragment_id, role=asset.role, path=retrieved.local_path)
+        return retrieved
     raise ValueError(f"Unsupported image provider: {provider}")
 
 

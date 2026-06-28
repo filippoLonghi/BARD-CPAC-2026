@@ -3,23 +3,24 @@
 BARD keeps the raw musical evidence separate from the child-friendly symbolic adventure prose. This makes each boundary
 inspectable and prevents uncertain instrument or genre guesses from appearing in the story.
 
-## 1. Audio File To Saved Chunks
+## 1. Audio File To Fragment Plan And Temporary Chunks
 
-`run-fragments` writes independently analyzable PCM WAV files:
+`run-fragments` first plans fragment boundaries from the input file duration. In normal mode it then
+extracts only the current fragment to a temporary PCM WAV, analyzes it, and removes that temp file.
+Use `--keep-audio-chunks` only when you need saved WAV chunks for debugging:
 
 ```text
-runs/<run>/audio_chunks/segment_001.wav
-runs/<run>/audio_chunks/segment_002.wav
-...
+runs/<run>/audio_chunks/segment_001.wav   # only with --keep-audio-chunks
 ```
 
-Each chunk has an `id`, local path, `start_s`, and `end_s`. With `--fragments 3`, the uploaded file is
+Each planned chunk has an `id`, `start_s`, and `end_s`. With `--fragments 3`, the uploaded file is
 divided into three equal windows. With `--chunk-seconds 20`, the final window may be shorter.
 
 ## 2. Chunk To Musical Observations
 
-Gemini analyzes one chunk per request. `music_segments.json` is the debugging file to keep open while
-listening to the files in `audio_chunks/`.
+Gemini analyzes one fragment chunk per request. Normal runs store this technical data in
+`run_manifest.json`. With `--debug-artifacts`, the same material is also written to
+`debug/music_segments.json`.
 
 ```json
 {
@@ -73,7 +74,9 @@ rhythm, harmony, and recording vocabulary do not enter the audience-facing story
 
 ## 4. Story Bible And Continuity State
 
-Before the first fragment, Gemini creates `story_bible` in `story.json`:
+Before the first fragment, Gemini creates a story bible. Normal replay `story.json` does not persist
+the full bible because Processing does not need it; `run_manifest.json` stores it for debugging and
+traceability:
 
 ```text
 title
@@ -102,7 +105,8 @@ Sources:
 
 After each fragment, `story_state` records location, character status, magical-object status, the last
 event, unresolved threads, and facts that must remain true. The next call receives the immutable bible
-and this compact state, rather than relying only on a growing prose transcript.
+and this compact state, rather than relying only on a growing prose transcript. The final state is in
+`run_manifest.json`, not the compact replay story.
 
 ## 5. Story Fragment To Two Visual Assets
 
@@ -123,8 +127,10 @@ Each fragment contains full prose for narration plus shorter material for projec
 }
 ```
 
-The two assets are generated or retrieved independently. `scene_cards.json` is the best visual
-debugging view; it includes prompts, provider, model, local path, source/license, status, and errors.
+The two assets are generated or retrieved independently. Normal replay `story.json` keeps only the
+fields needed for replay/regeneration/licensing: role, label, prompt, negative prompt, provider/model,
+status, local path, remote/source URL, license, creator, and errors. `debug/scene_cards.json`, enabled
+with `--debug-artifacts`, is the verbose visual debugging view.
 Symbol images are intentionally disabled for now and should not appear in generated story data, image
 generation jobs, OSC messages, or Processing draw order.
 
@@ -135,8 +141,9 @@ cutouts and only falls back to color flood-fill for non-alpha legacy images.
 ## 6. Python To Processing
 
 For uploaded-audio demonstrations, BARD first verifies Processing with `/prepare` and `/ready`.
-After scene 1 text and images are ready, Processing preloads them through `/prime` and `/primed`.
-Only then do the Processing clock and source audio start. Later scenes generate during playback:
+After scene 1 text and both image roles are ready, Processing preloads them through `/prime` and
+`/primed`. Only then do the Processing clock and source audio start. Later scenes generate during
+playback:
 
 ```text
 /reset
@@ -156,11 +163,12 @@ proportional to its word count. Words assemble progressively, then snap into pla
 the complete sentence remains readable before the next sentence slot. Every saved sentence is shown
 before its scene boundary.
 
-Python sends `/start` and starts local playback with `pygame` immediately afterward. Processing
-follows the audio clock, not accumulated slide delays. If a cloud scene arrives late, Processing shows it at the
-correct current time instead of shifting every later fragment; until it arrives, the previous visual
-state remains visible. This stale-image persistence is intentional for now and has not been changed.
-True microphone mode will replace the local player with the live input stream.
+Python sends `/start` and starts local playback with `pygame` immediately afterward, or asks
+Processing to start preloaded audio when `--playback processing` is used. Processing follows the audio
+clock, not accumulated slide delays. If a later cloud scene is late or incomplete, Python logs it and
+does not send placeholders; Processing holds the previous visual state. This stale-image persistence
+is intentional for now and has not been changed. True microphone mode will replace the local player
+with the live input stream.
 
 Canonical moods are shared exactly between Python and Processing:
 
@@ -209,11 +217,12 @@ direction, and event cues.
 ## Run Artifacts
 
 ```text
-result.json          everything together
-music_segments.json raw music facts + dramatic canvas
-story.json           story bible, state, fragments, image records
-scene_cards.json     visual integration view
-full_story.txt       prose only
-audio_chunks/        exact WAV chunks used for analysis
+story.json           compact replay contract for send-osc
+run_manifest.json    config, models, timing trace, debug metadata, cost estimates
 images/              generated or retrieved assets
+processing_audio.wav Docker/Processing playback copy, only when needed
 ```
+
+`story.json` intentionally omits debug-only fields such as full music segments, story bible, story
+state, narrative phase, visual motif, palette, motion, and display text. They remain available in
+`run_manifest.json`, and the old verbose views can be written under `debug/` with `--debug-artifacts`.

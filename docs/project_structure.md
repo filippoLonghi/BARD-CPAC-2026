@@ -9,7 +9,7 @@ configs/
   local.example.env          Template for local environment variables.
 
 data/
-  audio/                     Input recordings and performance audio.
+  audio/                     Single active location for input recordings and sample audio.
   labelbanks/                CLAP labelbank files used by local analysis.
 
 deploy/
@@ -24,19 +24,12 @@ docs/
   gcp_setup.md               Exact GCP setup commands.
   project_structure.md       This file.
 
-examples/
-  prototype_outputs/         Saved hackathon JSON/audio outputs.
-  story_inputs/              Small sample segment inputs.
-
 legacy/
-  prototype_scripts/         Historical one-file prototype scripts.
-
-scripts/
-  send_demo_story.py         Sends a tiny hardcoded story to Processing.
-  voice_server_edge.py       Optional local narrator voice server.
+  hackathon_2025/            Historical standalone prototype and demo scripts.
 
 src/
   bard_core/                 Active Python package.
 ```
 
-The active pipeline is `src/bard_core`. The old hackathon code is only kept where it is still wrapped by the package or useful as historical reference.
+The active pipeline is `src/bard_core`. Code under `legacy/hackathon_2025/` is historical reference
+only and is not imported by the current package.

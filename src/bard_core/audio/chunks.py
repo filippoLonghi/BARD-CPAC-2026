@@ -13,6 +13,16 @@ class AudioChunk:
     end_s: float
 
 
+@dataclass(frozen=True)
+class AudioChunkPlan:
+    id: int
+    start_frame: int
+    end_frame: int
+    sample_rate: int
+    start_s: float
+    end_s: float
+
+
 def split_audio_file(
     audio_path: Path,
     output_dir: Path,
@@ -20,6 +30,16 @@ def split_audio_file(
     chunk_s: float | None = None,
     fragment_count: int | None = None,
 ) -> list[AudioChunk]:
+    plans = plan_audio_chunks(audio_path, chunk_s=chunk_s, fragment_count=fragment_count)
+    return [extract_audio_chunk(audio_path, output_dir, plan) for plan in plans]
+
+
+def plan_audio_chunks(
+    audio_path: Path,
+    *,
+    chunk_s: float | None = None,
+    fragment_count: int | None = None,
+) -> list[AudioChunkPlan]:
     try:
         import soundfile as sf
     except ImportError as exc:
@@ -42,29 +62,41 @@ def split_audio_file(
     else:
         frames_per_chunk = max(1, round(float(chunk_s) * sample_rate))
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    chunks: list[AudioChunk] = []
-    with sf.SoundFile(str(resolved), "r") as source:
-        chunk_id = 1
-        start_frame = 0
-        while start_frame < total_frames:
-            source.seek(start_frame)
-            frame_count = min(frames_per_chunk, total_frames - start_frame)
-            samples = source.read(frame_count, dtype="float32", always_2d=True)
-            chunk_path = output_dir / f"segment_{chunk_id:03d}.wav"
-            sf.write(str(chunk_path), samples, sample_rate, subtype="PCM_16")
-            end_frame = start_frame + frame_count
-            chunks.append(
-                AudioChunk(
-                    id=chunk_id,
-                    path=chunk_path,
-                    start_s=start_frame / float(sample_rate),
-                    end_s=min(duration_s, end_frame / float(sample_rate)),
-                )
+    plans: list[AudioChunkPlan] = []
+    chunk_id = 1
+    start_frame = 0
+    while start_frame < total_frames:
+        frame_count = min(frames_per_chunk, total_frames - start_frame)
+        end_frame = start_frame + frame_count
+        plans.append(
+            AudioChunkPlan(
+                id=chunk_id,
+                start_frame=start_frame,
+                end_frame=end_frame,
+                sample_rate=sample_rate,
+                start_s=start_frame / float(sample_rate),
+                end_s=min(duration_s, end_frame / float(sample_rate)),
             )
-            start_frame = end_frame
-            chunk_id += 1
-    return chunks
+        )
+        start_frame = end_frame
+        chunk_id += 1
+    return plans
+
+
+def extract_audio_chunk(audio_path: Path, output_dir: Path, plan: AudioChunkPlan) -> AudioChunk:
+    try:
+        import soundfile as sf
+    except ImportError as exc:
+        raise RuntimeError("Audio chunking requires `pip install soundfile`.") from exc
+
+    resolved = audio_path.expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    chunk_path = output_dir / f"segment_{plan.id:03d}.wav"
+    with sf.SoundFile(str(resolved), "r") as source:
+        source.seek(plan.start_frame)
+        samples = source.read(plan.end_frame - plan.start_frame, dtype="float32", always_2d=True)
+        sf.write(str(chunk_path), samples, plan.sample_rate, subtype="PCM_16")
+    return AudioChunk(id=plan.id, path=chunk_path, start_s=plan.start_s, end_s=plan.end_s)
 
 
 def convert_audio_to_wav(audio_path: Path, output_path: Path) -> Path:

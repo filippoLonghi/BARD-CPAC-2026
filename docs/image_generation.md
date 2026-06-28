@@ -35,7 +35,9 @@ a clear error instead of silently changing providers.
 For Imagen, BARD sends each asset's full `prompt` field. Imagen 4 does not use the `negative_prompt`
 field in this implementation.
 
-`openverse` is the free smoke-test provider. It does not generate a new image; it searches Openverse, downloads a PNG/JPEG result, and stores attribution metadata in `scene_cards.json`.
+`openverse` is the free smoke-test provider. It does not generate a new image; it searches Openverse,
+downloads a PNG/JPEG result, and stores attribution metadata in compact `story.json` plus
+`run_manifest.json`.
 For Openverse, BARD derives a one- or two-word search query locally from `search_query` or the asset
 label, for example `radio tower` or `wooden ferry`. It does not spend an LLM call writing Openverse
 queries. The longer `prompt` is reserved for generation models such as Replicate and Imagen.
@@ -64,21 +66,21 @@ BARD_REPLICATE_API_TOKEN=...
 REPLICATE_API_TOKEN=...
 ```
 
-## Scene Cards
+## Replay And Debug Records
 
-Each run now writes:
+Each normal run now writes:
 
 ```text
 runs/<run_id>/
-  result.json
-  music_segments.json
   story.json
-  scene_cards.json
-  full_story.txt
+  run_manifest.json
   images/
 ```
 
-`scene_cards.json` is the best file to inspect when debugging images. Each card contains the segment timing, mood, story text, visual motif, palette, motion, and `image_assets`.
+`story.json` is the compact replay contract used by `send-osc`. It keeps the fields required for
+replay/regeneration/licensing. `run_manifest.json` keeps technical metadata, model choices, timing
+trace, and debug context. Add `--debug-artifacts` to write `debug/scene_cards.json`, which is the
+verbose visual debugging view.
 
 Each image asset has:
 
@@ -117,7 +119,7 @@ Write and inspect only the fake input scene card before generating images:
 
 ```powershell
 python -m bard_core generate-images --fake-card --fake-card-name cat-wood-sun --image-provider openverse --write-input-only --out-dir runs\fake-card-preview
-notepad runs\fake-card-preview\scene_cards.json
+notepad runs\fake-card-preview\debug\scene_cards.json
 ```
 
 The fake cards are generated from the Python code, so they do not appear in a folder until you run `--write-input-only` or generate images from them.
@@ -164,19 +166,19 @@ Image-only output is intentionally small:
 ```text
 runs/<image_test>/
   story.json              # replayable by the send-osc command
-  scene_cards.json        # input card, updated with statuses after generation
-  image_manifest.json     # image-only output metadata and errors
+  run_manifest.json       # image metadata, errors, and timing trace
   images/                 # files that Processing can use
 ```
 
-If fewer than two image files appear, open `image_manifest.json`; the missing layer should have
-`status: "failed"` and an `error`.
+If fewer than two image files appear, open `run_manifest.json`; the missing layer should have
+`status: "failed"` and an `error` in the debug context. Add `--debug-artifacts` for
+`debug/scene_cards.json`.
 
 Full pipeline Openverse smoke test:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --generate-images `
   --image-provider openverse `
   --out-dir runs\arabesque-openverse
@@ -186,7 +188,7 @@ Cheap FLUX generation:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --generate-images `
   --image-provider replicate `
   --out-dir runs\arabesque-replicate
@@ -210,7 +212,7 @@ Processing test with generated/retrieved images:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --generate-images `
   --image-provider openverse `
   --send-osc `
@@ -247,7 +249,7 @@ GCP billing/auth/model-region errors:
 
 Imagen safety block or no image bytes:
 
-- Inspect the failed asset in `scene_cards.json`.
+- Inspect the failed asset in `run_manifest.json`, or `debug/scene_cards.json` if you used `--debug-artifacts`.
 - Simplify the prompt.
 - Avoid people, violence, realistic body details, logos, and copyrighted characters.
 
@@ -259,7 +261,7 @@ Openverse no result or rate limit:
 
 Processing cannot load a path:
 
-- Check that `local_path` exists in `scene_cards.json`.
+- Check that `local_path` exists in `story.json`.
 - Use the same machine for Python and Processing.
 - Prefer paths printed with forward slashes, like `C:/Users/...`, which the OSC sender now uses.
 

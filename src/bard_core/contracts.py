@@ -155,21 +155,61 @@ class PipelineResult:
             for fragment in self.fragments
         ]
 
-    def write(self, output_dir: Path) -> None:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_json(output_dir / "result.json", self.to_dict())
-        write_json(output_dir / "music_segments.json", [asdict(seg) for seg in self.music_segments])
-        write_json(
-            output_dir / "story.json",
-            {
-                "fragments": [asdict(fragment) for fragment in self.fragments],
-                "full_story": self.full_story,
-                "story_bible": self.story_bible,
-                "story_state": self.story_state,
-            },
+    def replay_story_json(self, *, processing_audio_path: str | None = None) -> dict[str, Any]:
+        return to_replay_story_json(
+            run_id=self.run_id,
+            audio_path=self.audio_path,
+            audio_duration_s=self.metadata.get("duration_s"),
+            processing_audio_path=processing_audio_path or self.metadata.get("processing_audio_path"),
+            fragments=self.fragments,
+            full_story=self.full_story,
         )
-        write_json(output_dir / "scene_cards.json", self.scene_cards())
-        (output_dir / "full_story.txt").write_text(self.full_story, encoding="utf-8")
+
+    def run_manifest_json(
+        self,
+        *,
+        trace_events: list[dict[str, Any]] | None = None,
+        artifact_paths: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return to_run_manifest_json(
+            run_id=self.run_id,
+            audio_path=self.audio_path,
+            metadata=self.metadata,
+            music_segments=self.music_segments,
+            story_bible=self.story_bible,
+            story_state=self.story_state,
+            trace_events=trace_events or [],
+            artifact_paths=artifact_paths or {},
+        )
+
+    def write(
+        self,
+        output_dir: Path,
+        *,
+        debug_artifacts: bool = False,
+        trace_events: list[dict[str, Any]] | None = None,
+        processing_audio_path: str | None = None,
+    ) -> None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        story_path = output_dir / "story.json"
+        manifest_path = output_dir / "run_manifest.json"
+        artifact_paths = {
+            "story": story_path.name,
+            "run_manifest": manifest_path.name,
+        }
+        write_json(story_path, self.replay_story_json(processing_audio_path=processing_audio_path))
+        write_json(
+            manifest_path,
+            self.run_manifest_json(trace_events=trace_events, artifact_paths=artifact_paths),
+        )
+        if debug_artifacts:
+            debug_dir = output_dir / "debug"
+            write_json(debug_dir / "result.json", self.to_dict())
+            write_json(debug_dir / "music_segments.json", [asdict(seg) for seg in self.music_segments])
+            write_json(debug_dir / "scene_cards.json", self.scene_cards())
+            (debug_dir / "full_story.txt").write_text(self.full_story, encoding="utf-8")
+        else:
+            _remove_legacy_artifacts(output_dir)
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -206,6 +246,120 @@ def story_fragments_from_json(path: Path) -> list[StoryFragment]:
             )
         )
     return fragments
+
+
+def to_replay_story_json(
+    *,
+    run_id: str,
+    audio_path: str | None,
+    audio_duration_s: object | None,
+    processing_audio_path: str | None,
+    fragments: list[StoryFragment],
+    full_story: str,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema": "bard.replay_story",
+        "version": 1,
+        "run_id": run_id,
+        "audio": _compact_dict(
+            {
+                "source_path": audio_path,
+                "duration_s": audio_duration_s,
+                "processing_audio_path": processing_audio_path,
+            }
+        ),
+        "fragments": [_fragment_replay_json(fragment) for fragment in fragments],
+        "full_story": full_story,
+    }
+    return _compact_dict(payload)
+
+
+def to_run_manifest_json(
+    *,
+    run_id: str,
+    audio_path: str,
+    metadata: dict[str, Any],
+    music_segments: list[MusicSegment],
+    story_bible: dict[str, Any],
+    story_state: dict[str, Any],
+    trace_events: list[dict[str, Any]],
+    artifact_paths: dict[str, str],
+) -> dict[str, Any]:
+    return _compact_dict(
+        {
+            "schema": "bard.run_manifest",
+            "version": 1,
+            "run_id": run_id,
+            "audio_path": audio_path,
+            "metadata": _compact_dict(metadata),
+            "artifacts": artifact_paths,
+            "trace": trace_events,
+            "debug_context": _compact_dict(
+                {
+                    "music_segments": [_compact_dict(asdict(segment)) for segment in music_segments],
+                    "story_bible": story_bible,
+                    "story_state": story_state,
+                }
+            ),
+        }
+    )
+
+
+def _fragment_replay_json(fragment: StoryFragment) -> dict[str, Any]:
+    return _compact_dict(
+        {
+            "id": fragment.id,
+            "start_s": fragment.start_s,
+            "end_s": fragment.end_s,
+            "mood": fragment.normalized_mood(),
+            "text": fragment.text,
+            "keywords": fragment.keywords,
+            "image_assets": [_image_asset_replay_json(asset) for asset in order_image_assets(fragment.image_assets)],
+        }
+    )
+
+
+def _image_asset_replay_json(asset: ImageAsset) -> dict[str, Any]:
+    return _compact_dict(
+        {
+            "role": normalize_image_role(asset.role) or asset.role,
+            "label": asset.label,
+            "prompt": asset.prompt,
+            "negative_prompt": asset.negative_prompt,
+            "provider": asset.provider,
+            "model": asset.model,
+            "status": asset.status,
+            "local_path": asset.local_path,
+            "remote_url": asset.remote_url,
+            "source_url": asset.source_url,
+            "license": asset.license,
+            "creator": asset.creator,
+            "error": asset.error,
+        }
+    )
+
+
+def _compact_dict(data: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    for key, value in data.items():
+        if value is None:
+            continue
+        if isinstance(value, dict):
+            nested = _compact_dict(value)
+            if nested:
+                compact[key] = nested
+        elif isinstance(value, list):
+            compact[key] = value
+        elif value != "":
+            compact[key] = value
+    return compact
+
+
+def _remove_legacy_artifacts(output_dir: Path) -> None:
+    for name in ("result.json", "music_segments.json", "scene_cards.json", "full_story.txt"):
+        path = output_dir / name
+        if path.exists() and path.is_file():
+            path.unlink()
 
 
 def image_assets_from_json(raw_assets: Any) -> list[ImageAsset]:

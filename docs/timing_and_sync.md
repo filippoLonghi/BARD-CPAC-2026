@@ -23,10 +23,10 @@ or CLI flags for timing experiments.
 | `--chunk-seconds S` | Python splitting | `src/bard_core/cli.py` | CLI only | Regenerate story, analysis, images | Preserves old fixed-size chunking, including any short final remainder. |
 | `BARD_MUSIC_WINDOWS_PER_FRAGMENT` | Python audio analysis | `src/bard_core/config.py` default `4` | env/config file or `--music-windows-per-fragment` | Rerun audio analysis and story generation | Number of fine observations inside each story fragment when fixed windows are not used. |
 | `BARD_MUSIC_WINDOW_S` / `--music-window-seconds` | Python audio analysis | Optional env in `src/bard_core/config.py`; CLI in `src/bard_core/cli.py` | env/config file or CLI | Rerun audio analysis and story generation | Fixed observation length. If set, it overrides derived windows-per-fragment timing. |
-| `SENTENCE_STABLE_FRACTION` | Processing text timing | `apps/processing/bard_story_visuals/WordsSystem.pde`, `0.22f` | Edit Processing source | Replay existing `story.json` | Maximum fraction of a sentence slot reserved for stable reading before fade. |
+| `SENTENCE_STABLE_FRACTION` | Processing text timing | `apps/processing/bard_story_visuals/WordsSystem.pde`, `0.35f` | Edit Processing source | Replay existing `story.json` | Maximum fraction of a sentence slot reserved for stable reading before fade. |
 | `SENTENCE_MIN_STABLE_MS` | Processing text timing | `WordsSystem.pde`, `1200` | Edit Processing source | Replay existing `story.json` | Minimum stable reading time for a sentence. |
-| `SENTENCE_MAX_STABLE_MS` | Processing text timing | `WordsSystem.pde`, `2400` | Edit Processing source | Replay existing `story.json` | Maximum stable reading time for a sentence. |
-| `SENTENCE_FLIGHT_BUFFER_MS` | Processing word entrance | `WordsSystem.pde`, `2000` used by `SentenceDisplay.pde` | Edit Processing source | Replay existing `story.json` | Reserve before the assembly deadline so the last word has time to fly toward its target. |
+| `SENTENCE_MAX_STABLE_MS` | Processing text timing | `WordsSystem.pde`, `4000` | Edit Processing source | Replay existing `story.json` | Maximum stable reading time for a sentence. |
+| `SENTENCE_FLIGHT_BUFFER_MS` | Processing word entrance | `WordsSystem.pde`, `3000` used by `SentenceDisplay.pde` | Edit Processing source | Replay existing `story.json` | Reserve before the assembly deadline so the last word has time to fly toward its target. |
 
 `BARD_READING_WPM` is accepted as a legacy env/CLI compatibility input and maps to the story WPM
 when no explicit `BARD_STORY_WPM` / `--story-wpm` is provided. `BARD_TEXT_COVERAGE` is deprecated
@@ -96,7 +96,7 @@ generation. Open Processing and replay an existing `story.json`.
 For quick tests, prefer CLI flags:
 
 ```powershell
-python -m bard_core run-fragments --audio data\test_audio\demo.wav --story-wpm 55
+python -m bard_core run-fragments --audio data\audio\demo.wav --story-wpm 55
 ```
 
 ## Worked Example

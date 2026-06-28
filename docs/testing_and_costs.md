@@ -31,9 +31,9 @@ apps/processing/bard_story_visuals/bard_story_visuals.pde
 ```
 
 Press Run before starting a command containing `--send-osc`. Processing waits on its title screen
-while scene 1 is prepared. Music starts only after scene 1 has non-empty story text, at least one
-usable image, and the OSC messages have had the configured startup delay to settle. Later scenes
-continue generating during playback.
+while scene 1 is prepared. Music starts only after scene 1 has non-empty story text and both required
+image roles (`background` and `subject`) ready. Later scenes continue generating during playback; if
+one is late or incomplete, Python logs the delay and Processing holds the current scene.
 
 ## Hybrid Call Plan
 
@@ -55,7 +55,7 @@ standard pricing lists audio input at `$1/1M audio tokens`, ordinary text/image/
 listening to the complete recording, but it removes repeated prompt/output overhead and 19 separate
 music-to-story LLM calls. A practical Arabesque hybrid run should normally keep Gemini analysis and
 story cost in the low cents; allow roughly `$0.02-$0.06`, then add `$0.20` for 10 Imagen Fast images.
-Every run writes planned counts under `metadata.estimated_api_calls`.
+Every run writes planned counts under `run_manifest.json` at `metadata.estimated_api_calls`.
 
 Pricing source: [Google Cloud generative AI pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing).
 
@@ -70,8 +70,10 @@ This command makes three exact chunks without creating images:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\sad_walk_komiku.ogg `
+  --audio data\audio\sad_walk_komiku.ogg `
   --fragments 3 `
+  --debug-artifacts `
+  --keep-audio-chunks `
   --out-dir runs\debug-three-fragments
 ```
 
@@ -85,7 +87,7 @@ runs/debug-three-fragments/audio_chunks/segment_001.wav
 Compare each file with the matching object in:
 
 ```text
-runs/debug-three-fragments/music_segments.json
+runs/debug-three-fragments/debug/music_segments.json
 ```
 
 The filename `sad_walk_komiku.ogg` is neutral on purpose. Its source title says “Sad walk with sad
@@ -98,7 +100,7 @@ Open Processing first, then run:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\dramatic_ending.ogg `
+  --audio data\audio\dramatic_ending.ogg `
   --fragments 3 `
   --words-per-fragment 80 `
   --generate-images `
@@ -120,7 +122,7 @@ recording. Open Processing first:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\schubert_adagio_allegro.ogg `
+  --audio data\audio\schubert_adagio_allegro.ogg `
   --chunk-seconds 60 `
   --story-language English `
   --story-level children `
@@ -143,7 +145,7 @@ Italian early-reader test using only Openverse for images:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\dramatic_ending.ogg `
+  --audio data\audio\dramatic_ending.ogg `
   --fragments 3 `
   --story-language Italian `
   --story-level early-reader `
@@ -161,7 +163,7 @@ without new cloud or Openverse calls:
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
   --story-json runs\italian-openverse\story.json `
-  --audio data\test_audio\dramatic_ending.ogg `
+  --audio data\audio\dramatic_ending.ogg `
   --include-images `
   --delay 0
 ```

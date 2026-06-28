@@ -1,6 +1,6 @@
 # Running The Complete Pipeline
 
-This is the canonical command guide for the current hybrid pipeline.
+This is the canonical command guide for the current live/sequential file pipeline.
 
 For the no-venv Docker Desktop workflow, see [docker.md](docker.md).
 
@@ -24,7 +24,7 @@ synchronized audio playback, and Processing:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
@@ -40,7 +40,7 @@ Openverse has no image API charge. Gemini audio and story calls still use GCP.
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
@@ -58,7 +58,7 @@ With default 60-second scenes, Arabesque produces about five scenes and ten imag
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
   --story-json runs\arabesque-hybrid-test\story.json `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --include-images `
   --delay 0
 ```
@@ -69,11 +69,43 @@ This makes no Gemini, Imagen, Openverse, or GCP calls. Use it for Processing tes
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\test_audio\arabesque.mp3 `
+  --audio data\audio\arabesque.mp3 `
   --out-dir runs\arabesque-analysis
 ```
 
-Inspect `music_segments.json`, `story.json`, and `audio_chunks/` in that output directory.
+Inspect `story.json` and `run_manifest.json` in that output directory. Add `--debug-artifacts` and
+`--keep-audio-chunks` when you need the old verbose files or exact chunk WAVs.
+
+## Live/Sequential Behavior
+
+`run-fragments` plans the fragment boundaries from the full file, then works one fragment at a time.
+It does not analyze the full audio, write every chunk, generate the full story, or generate all images
+before playback. Fragment 1 is fully prepared first: temporary audio chunk, audio analysis, story
+text, and both required image roles (`background` and `subject`). Only then does Python prime
+Processing and send `/start`.
+
+While fragment 1 is playing, Python prepares fragment 2, then fragment 3, and so on. A later fragment
+is sent to Processing only after its story and images are ready. If it is late or incomplete, the
+console trace and `run_manifest.json` record the delay; Processing keeps the current scene rather
+than receiving placeholders.
+
+Normal run artifacts are compact:
+
+```text
+runs/<run>/
+  story.json          replay contract for send-osc
+  run_manifest.json   config, models, trace, debug metadata
+  images/             generated or retrieved image assets
+```
+
+With `--debug-artifacts`, verbose files are written under `debug/`:
+
+```text
+debug/result.json
+debug/music_segments.json
+debug/scene_cards.json
+debug/full_story.txt
+```
 
 ## Parameters
 
@@ -97,7 +129,9 @@ Inspect `music_segments.json`, `story.json`, and `audio_chunks/` in that output 
 | `--max-image-assets 2` | Maximum images per scene. Current roles are `background` and `subject`; Imagen cost scales directly with this value. |
 | `--startup-delay 1.5` | Extra delay before Processing primes scene one. |
 | `--playback python` | Local default. Use `processing` when Python runs inside Docker Desktop. |
-| `--send-osc` | Sends data to Processing and plays the source audio. |
+| `--send-osc` | Sends data to Processing and plays the source audio. Requires `--generate-images` so playback never starts story-only. |
+| `--debug-artifacts` | Writes verbose legacy-style JSON/text files under `debug/`. |
+| `--keep-audio-chunks` | Preserves per-fragment WAV chunks under `audio_chunks/`; otherwise chunks are temporary and removed after analysis. |
 | `--out-dir PATH` | Output directory. Use a new directory for each cloud run. |
 
 Replay-only `send-osc` parameters:
@@ -106,6 +140,7 @@ Replay-only `send-osc` parameters:
 |---|---|
 | `--story-json PATH` | Saved story and image records to replay. |
 | `--audio PATH` | Existing source audio to play with the saved timestamps. |
+| `--playback processing` | Docker Desktop mode: convert/preload audio in Processing and start it on `/start`. |
 | `--include-images` | Sends saved local image paths to Processing. |
 | `--delay 0` | Delay before the replay handshake. Usually keep `0` because readiness is checked explicitly. |
 | `--duration 10` | Fallback scene duration only when saved fragments have no `start_s/end_s`. |
