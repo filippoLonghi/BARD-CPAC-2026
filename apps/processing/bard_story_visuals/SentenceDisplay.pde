@@ -38,8 +38,8 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
         x = width * 0.05f; 
       }
     }
-    if (y > height*0.7) {
-      y = (height*0.6);
+    if (y > height*0.6) {
+      y = (height*0.5);
     }
     
     float lineX = x;
@@ -92,7 +92,7 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
     }*/
 
     if (elapsed >= slotEndMs) {
-      opacity = max(0, opacity - 22);
+      opacity = max(0, opacity - 21);
     }
   }
 

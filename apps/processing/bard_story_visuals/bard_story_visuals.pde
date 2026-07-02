@@ -19,7 +19,7 @@ float textAreaPad = 32;
 float imgX, imgY, imgW, imgH;
 
 // variabili dei font
-float fontPercent = 0.2; //così il font dovrebbe essere sempre della stessa proporzione in altezza 
+float fontPercent = 0.05; //così il font dovrebbe essere sempre della stessa proporzione in altezza 
 int fontSize = int(height*fontPercent);
 float leading = fontSize * 1.45;
 PFont myFont;
@@ -49,7 +49,8 @@ ProcessingAudioPlayer processingAudioPlayer = new ProcessingAudioPlayer();
 
 // ---------- SETUP -------------
 void setup() {
-  fullScreen(P2D);
+  size(600, 400, P2D);
+  windowResizable(true);
 
   oscP5 = new OscP5(this, port);
   pythonVoiceLocation = new NetAddress("127.0.0.1", 5006);
@@ -179,4 +180,16 @@ void oscEvent(OscMessage message) {
   if (oscHandler != null) {
     oscHandler.handleMessage(message);
   }
+}
+
+// gestione resize della finestra e modifica conseguente del fontSize
+void windowResized() {
+  fontSize = int(height * fontPercent);
+  leading = fontSize * 1.45;
+  
+  myFont = createFont("AlteHaasGrotesk", fontSize, true, buildItalianCharset());
+  myTitle = createFont("Georgia", fontSize * 2.5, true);
+  textFont(myFont);
+  
+  calcImageRect();
 }

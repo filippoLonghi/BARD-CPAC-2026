@@ -8,7 +8,7 @@ class FlyingWord {
   float currentGlow = 0;
   float targetGlow  = 0;
   float colorVariation; //varia un pochino il colore di ciascuna parola randomly
-  float flightSpeed  = 8.5;
+  float flightSpeed  = 8.8;
   float opacity = 255;
 
 

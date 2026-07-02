@@ -1,28 +1,52 @@
 final float SENTENCE_STABLE_FRACTION = 0.35f;
-final int SENTENCE_MIN_STABLE_MS = 1200;
+final int SENTENCE_MIN_STABLE_MS = 2000;
 final int SENTENCE_MAX_STABLE_MS = 4000;
 final int SENTENCE_FLIGHT_BUFFER_MS = 3000;
+final int MIN_WORDS_PER_SLOT = 6;
 
 class WordsSystem {
   ArrayList<SentenceDisplay> scheduled = new ArrayList<SentenceDisplay>();
   int sentenceCounter = 0;
 
   void beginScene(String textValue, float durationSeconds) {
-    scheduled.clear();
+    for (SentenceDisplay sd : scheduled) {
+      int elapsed = millis() - sd.sceneStartedAt;
+      if (elapsed < sd.slotEndMs) {
+        sd.slotEndMs = elapsed; // Forza l'inizio del fade-out esattamente in questo istante
+      }
+    }
+    
     if (textValue == null || textValue.trim().length() == 0) return;
 
     String[] rawSentences = textValue.trim().split("(?<=[.!?])\\s+");
     ArrayList<String> sentences = new ArrayList<String>();
     ArrayList<Integer> wordCounts = new ArrayList<Integer>();
     int totalWords = 0;
+    String currentMergedSentence = ""; //qui
     
-    for (String sentence : rawSentences) {
-      String cleaned = sentence.trim();
+    for (int i = 0; i < rawSentences.length; i++) {
+      String cleaned = rawSentences[i].trim();
       if (cleaned.length() == 0) continue;
+      
+      if (currentMergedSentence.length() > 0) { // qui
+        currentMergedSentence += " " + cleaned;
+      } else {
+        currentMergedSentence = cleaned;
+      }
+      
       int count = max(1, splitTokens(cleaned, " \t\n\r").length);
-      sentences.add(cleaned);
+      /*sentences.add(cleaned);
       wordCounts.add(count);
-      totalWords += count;
+      totalWords += count;*/
+      
+      if (count >= MIN_WORDS_PER_SLOT || i == rawSentences.length - 1) {
+        sentences.add(currentMergedSentence);
+        wordCounts.add(count);
+        totalWords += count;
+        
+        // Svuotiamo l'accumulatore per il giro successivo
+        currentMergedSentence = ""; 
+      }
     }
     if (sentences.size() == 0) return;
 
