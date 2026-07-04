@@ -1,7 +1,7 @@
-final float SENTENCE_STABLE_FRACTION = 0.35f;
+final float SENTENCE_STABLE_FRACTION = 0.5f;
 final int SENTENCE_MIN_STABLE_MS = 2000;
-final int SENTENCE_MAX_STABLE_MS = 4000;
-final int SENTENCE_FLIGHT_BUFFER_MS = 3000;
+final int SENTENCE_MAX_STABLE_MS = 6000;
+final int SENTENCE_FLIGHT_BUFFER_MS = 2500;
 final int MIN_WORDS_PER_SLOT = 6;
 
 class WordsSystem {
@@ -41,8 +41,9 @@ class WordsSystem {
       
       if (count >= MIN_WORDS_PER_SLOT || i == rawSentences.length - 1) {
         sentences.add(currentMergedSentence);
-        wordCounts.add(count);
-        totalWords += count;
+        int realCount = max(1, splitTokens(currentMergedSentence, " \t\n\r").length);
+        wordCounts.add(realCount);
+        totalWords += realCount;
         
         // Svuotiamo l'accumulatore per il giro successivo
         currentMergedSentence = ""; 

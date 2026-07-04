@@ -5,6 +5,7 @@ services:
     image: bard-cpac:local
     working_dir: /workspace
     entrypoint: ["python", "-m", "bard_core"]
+    command: ["run-fragments"]
     volumes:
       - .:/workspace
     ports:

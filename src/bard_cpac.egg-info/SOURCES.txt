@@ -9,6 +9,7 @@ src/bard_core/config.py
 src/bard_core/contracts.py
 src/bard_core/pipeline.py
 src/bard_core/pipeline_sequential.py
+src/bard_core/progress.py
 src/bard_core/utils.py
 src/bard_core/audio/__init__.py
 src/bard_core/audio/chunks.py
@@ -42,6 +43,7 @@ src/bard_cpac.egg-info/dependency_links.txt
 src/bard_cpac.egg-info/entry_points.txt
 src/bard_cpac.egg-info/requires.txt
 src/bard_cpac.egg-info/top_level.txt
+tests/test_cli.py
 tests/test_images.py
 tests/test_sequential.py
 tests/test_story_pipeline_fixes.py

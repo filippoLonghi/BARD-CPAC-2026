@@ -164,19 +164,19 @@ class BardSettings:
             osc_ready_bind_host=env_str("BARD_OSC_READY_BIND_HOST", "127.0.0.1"),
             processing_ready_timeout_s=env_float("BARD_PROCESSING_READY_TIMEOUT_S", 8.0),
             default_chunk_s=env_float("BARD_DEFAULT_CHUNK_S", 30.0),
-            default_wpm=env_float("BARD_READING_WPM", 120.0),
+            default_wpm=env_float("BARD_READING_WPM", 100.0),
             story_wpm=float(story_wpm),
-            fragment_target_s=env_float("BARD_FRAGMENT_TARGET_S", 60.0),
-            fragment_min_s=env_float("BARD_FRAGMENT_MIN_S", 50.0),
-            fragment_max_s=env_float("BARD_FRAGMENT_MAX_S", 70.0),
+            fragment_target_s=env_float("BARD_FRAGMENT_TARGET_S", 30.0), #prima era 60
+            fragment_min_s=env_float("BARD_FRAGMENT_MIN_S", 20.0), # 50
+            fragment_max_s=env_float("BARD_FRAGMENT_MAX_S", 40.0), # 70
             short_audio_threshold_s=env_float("BARD_SHORT_AUDIO_THRESHOLD_S", 120.0),
             story_language=env_str("BARD_STORY_LANGUAGE", "English"),
             story_level=env_str("BARD_STORY_LEVEL", "children"),
             text_coverage=env_float("BARD_TEXT_COVERAGE", 0.72),
-            target_words_per_fragment=env_int("BARD_TARGET_WORDS_PER_FRAGMENT", 72),
+            target_words_per_fragment=env_int("BARD_TARGET_WORDS_PER_FRAGMENT", 40),
             music_window_s=env_float_optional("BARD_MUSIC_WINDOW_S"),
-            music_windows_per_fragment=env_int("BARD_MUSIC_WINDOWS_PER_FRAGMENT", 4),
-            story_scene_s=env_float("BARD_STORY_SCENE_S", 60.0),
+            music_windows_per_fragment=env_int("BARD_MUSIC_WINDOWS_PER_FRAGMENT", 2), # 4
+            story_scene_s=env_float("BARD_STORY_SCENE_S", 30.0), #60 
             processing_startup_delay_s=env_float("BARD_PROCESSING_STARTUP_DELAY_S", 1.5),
             use_4bit=env_bool("BARD_USE_4BIT", True),
         )
