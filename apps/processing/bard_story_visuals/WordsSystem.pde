@@ -1,4 +1,4 @@
-final float SENTENCE_STABLE_FRACTION = 0.5f;
+final float SENTENCE_STABLE_FRACTION = 0.4f;
 final int SENTENCE_MIN_STABLE_MS = 2000;
 final int SENTENCE_MAX_STABLE_MS = 6000;
 final int SENTENCE_FLIGHT_BUFFER_MS = 2500;
@@ -22,33 +22,33 @@ class WordsSystem {
     ArrayList<String> sentences = new ArrayList<String>();
     ArrayList<Integer> wordCounts = new ArrayList<Integer>();
     int totalWords = 0;
-    String currentMergedSentence = ""; //qui
+    String currentMergedSentence = ""; 
+    int currentMergedCount = 0;
     
     for (int i = 0; i < rawSentences.length; i++) {
       String cleaned = rawSentences[i].trim();
       if (cleaned.length() == 0) continue;
       
+      int count = max(1, splitTokens(cleaned, " \t\n\r").length); // current piece
+
       if (currentMergedSentence.length() > 0) { // qui
         currentMergedSentence += " " + cleaned;
       } else {
         currentMergedSentence = cleaned;
       }
+      currentMergedCount += count;
       
-      int count = max(1, splitTokens(cleaned, " \t\n\r").length);
-      /*sentences.add(cleaned);
-      wordCounts.add(count);
-      totalWords += count;*/
-      
-      if (count >= MIN_WORDS_PER_SLOT || i == rawSentences.length - 1) {
+      if (currentMergedCount >= MIN_WORDS_PER_SLOT || i == rawSentences.length - 1) {
         sentences.add(currentMergedSentence);
-        int realCount = max(1, splitTokens(currentMergedSentence, " \t\n\r").length);
-        wordCounts.add(realCount);
-        totalWords += realCount;
+        wordCounts.add(currentMergedCount);
+        totalWords += currentMergedCount;
         
         // Svuotiamo l'accumulatore per il giro successivo
         currentMergedSentence = ""; 
+        currentMergedCount = 0;
       }
     }
+    
     if (sentences.size() == 0) return;
 
     int sceneStart = millis();
