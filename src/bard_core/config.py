@@ -173,7 +173,7 @@ class BardSettings:
             story_language=env_str("BARD_STORY_LANGUAGE", "English"),
             story_level=env_str("BARD_STORY_LEVEL", "children"),
             text_coverage=env_float("BARD_TEXT_COVERAGE", 0.72),
-            target_words_per_fragment=env_int("BARD_TARGET_WORDS_PER_FRAGMENT", 40),
+            target_words_per_fragment=env_int("BARD_TARGET_WORDS_PER_FRAGMENT", 80),
             music_window_s=env_float_optional("BARD_MUSIC_WINDOW_S"),
             music_windows_per_fragment=env_int("BARD_MUSIC_WINDOWS_PER_FRAGMENT", 2), # 4
             story_scene_s=env_float("BARD_STORY_SCENE_S", 30.0), #60 
