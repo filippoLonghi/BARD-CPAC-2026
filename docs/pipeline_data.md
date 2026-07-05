@@ -190,8 +190,8 @@ The default is `BARD_STORY_WPM=70`, deliberately slower than fluent adult fictio
 also follow moving words, images, and music.
 
 When neither `--chunk-seconds` nor `--fragments` is provided, BARD chooses balanced story fragments
-near `BARD_FRAGMENT_TARGET_S`, normally 60 seconds. Inside each scene, one Gemini audio request
-returns `BARD_MUSIC_WINDOWS_PER_FRAGMENT` timestamped observations, normally 4.
+near `BARD_FRAGMENT_TARGET_S`. Inside each scene, one Gemini audio request returns
+`BARD_MUSIC_WINDOWS_PER_FRAGMENT` timestamped observations.
 One story request receives that complete ordered list, so the prose follows small musical changes
 while the scene shares one coherent passage and one set of images.
 
@@ -203,8 +203,8 @@ These controls are configurable:
 
 ```text
 --music-window-seconds 15
---music-windows-per-fragment 4
---chunk-seconds 60
+--music-windows-per-fragment 2
+--chunk-seconds 30
 --story-wpm 70
 --story-language Italian
 --story-level early-reader|children|general|literary

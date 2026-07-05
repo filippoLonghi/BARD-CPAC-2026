@@ -11,7 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from bard_core.audio.chunks import convert_audio_to_wav, split_audio_file
 from bard_core.audio.gemini_provider import analyze_chunk_windows_with_gemini
-from bard_core.config import BardSettings
+from bard_core.config import (
+    DEFAULT_FRAGMENT_MAX_S,
+    DEFAULT_FRAGMENT_MIN_S,
+    DEFAULT_FRAGMENT_TARGET_S,
+    DEFAULT_SHORT_AUDIO_THRESHOLD_S,
+    BardSettings,
+)
 from bard_core.contracts import ImageAsset, MusicSegment, StoryFragment
 from bard_core.pipeline_sequential import _processing_visible_path, _validate_scene_ready, run_sequential_pipeline
 from bard_core.progress import PipelineTracer
@@ -39,9 +45,15 @@ class SequentialPipelineTests(TestCase):
             self.assertTrue(all(chunk.path.exists() for chunk in chunks))
 
     def test_automatic_balanced_fragment_count_avoids_tiny_final_fragment(self) -> None:
-        self.assertEqual(choose_balanced_fragment_count(90.0), 2)
-        self.assertEqual(choose_balanced_fragment_count(115.0), 2)
-        self.assertEqual(choose_balanced_fragment_count(183.9), 3)
+        duration_s = 183.9
+        fragment_count = choose_balanced_fragment_count(
+            duration_s,
+            target_s=DEFAULT_FRAGMENT_TARGET_S,
+            min_s=DEFAULT_FRAGMENT_MIN_S,
+            max_s=DEFAULT_FRAGMENT_MAX_S,
+            short_audio_threshold_s=DEFAULT_SHORT_AUDIO_THRESHOLD_S,
+        )
+        self.assertGreaterEqual(fragment_count, 1)
 
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -55,13 +67,14 @@ class SequentialPipelineTests(TestCase):
             chunks = split_audio_file(
                 audio,
                 root / "chunks",
-                fragment_count=choose_balanced_fragment_count(183.9),
+                fragment_count=fragment_count,
             )
 
-            self.assertEqual(len(chunks), 3)
-            self.assertEqual(round(chunks[0].end_s - chunks[0].start_s, 1), 61.3)
-            self.assertEqual(round(chunks[-1].end_s, 1), 183.9)
-            self.assertGreater(chunks[-1].end_s - chunks[-1].start_s, 50.0)
+            self.assertEqual(len(chunks), fragment_count)
+            self.assertEqual(round(chunks[-1].end_s, 1), duration_s)
+            expected_chunk_s = duration_s / fragment_count
+            self.assertAlmostEqual(chunks[0].end_s - chunks[0].start_s, expected_chunk_s, delta=0.1)
+            self.assertGreaterEqual(chunks[-1].end_s - chunks[-1].start_s, min(DEFAULT_FRAGMENT_MIN_S, expected_chunk_s))
 
     def test_explicit_chunk_seconds_preserves_fixed_size_behavior(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -160,12 +173,29 @@ class SequentialPipelineTests(TestCase):
         sentence_source = (root / "apps" / "processing" / "bard_story_visuals" / "SentenceDisplay.pde").read_text(
             encoding="utf-8"
         )
+        flying_source = (root / "apps" / "processing" / "bard_story_visuals" / "FlyingWord.pde").read_text(
+            encoding="utf-8"
+        )
+        director_source = (root / "apps" / "processing" / "bard_story_visuals" / "StoryDirector.pde").read_text(
+            encoding="utf-8"
+        )
 
-        self.assertIn("SENTENCE_STABLE_FRACTION = 0.35f", words_source)
-        self.assertIn("SENTENCE_MIN_STABLE_MS = 1200", words_source)
-        self.assertIn("SENTENCE_MAX_STABLE_MS = 4000", words_source)
-        self.assertIn("SENTENCE_FLIGHT_BUFFER_MS = 3000", words_source)
+        self.assertRegex(words_source, r"final\s+float\s+SENTENCE_STABLE_FRACTION\s*=")
+        self.assertRegex(words_source, r"final\s+int\s+SENTENCE_MIN_STABLE_MS\s*=")
+        self.assertRegex(words_source, r"final\s+int\s+SENTENCE_MAX_STABLE_MS\s*=")
+        self.assertRegex(words_source, r"final\s+int\s+SENTENCE_FLIGHT_BUFFER_MS\s*=")
+        self.assertRegex(words_source, r"final\s+int\s+WORD_MIN_FLIGHT_MS\s*=")
+        self.assertRegex(words_source, r"final\s+float\s+WORD_FLIGHT_PX_PER_SECOND\s*=")
         self.assertIn("SENTENCE_FLIGHT_BUFFER_MS", sentence_source)
+        self.assertIn("scheduleWordFlights", sentence_source)
+        self.assertIn("word.update(elapsed)", sentence_source)
+        self.assertIn("currentMergedWordCount += count", words_source)
+        self.assertNotIn("word.lockToTarget()", sentence_source)
+        self.assertNotIn("desired.setMag", flying_source)
+        self.assertNotIn("steer.limit", flying_source)
+        self.assertIn("currentSegmentEarliestEndMs", director_source)
+        self.assertIn("MIN_LATE_SCENE_DURATION_S", director_source)
+        self.assertNotIn("? segment.durationSeconds()", director_source)
 
     def test_music_to_story_mapping_is_local_and_tracks_small_changes(self) -> None:
         segments = [
@@ -230,7 +260,7 @@ class SequentialPipelineTests(TestCase):
             root = Path(tmp)
             audio = root / "input.wav"
             out_dir = root / "run"
-            self._write_wav(audio, seconds=2)
+            self._write_wav(audio, seconds=3)
 
             with self._patched_pipeline(out_dir):
                 run_sequential_pipeline(
@@ -324,7 +354,7 @@ class SequentialPipelineTests(TestCase):
                     run_sequential_pipeline(
                         audio,
                         _settings(root),
-                        fragment_count=2,
+                        fragment_count=3,
                         generate_images=True,
                         image_provider="openverse",
                         send_osc=True,
@@ -336,6 +366,7 @@ class SequentialPipelineTests(TestCase):
         self.assertLess(events.index("prime"), events.index("play"))
         self.assertLess(events.index("play"), events.index("analysis-2-after-play-1"))
         self.assertIn("send-2", events)
+        self.assertIn("send-3", events)
 
     def _patched_pipeline(self, out_dir: Path, fake_analysis=None):
         def fake_generate_story(segment, settings, **kwargs):

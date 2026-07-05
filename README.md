@@ -88,10 +88,11 @@ Press Run in Processing first, then replay the saved result:
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
   --story-json runs\arabesque-hybrid-test\story.json `
-  --audio data\audio\arabesque.mp3 `
-  --include-images `
   --delay 0
 ```
+
+Replay sends saved images by default. If the run folder contains `processing_audio.wav`, Processing
+preloads it and starts music with `/start`.
 
 Current OSC messages:
 
@@ -115,9 +116,10 @@ complete. Fragment 2 and later are prepared while playback is already running. I
 late or incomplete, Python logs the delay and keeps the current Processing scene rather than sending a
 placeholder or incomplete visual.
 
-The default hybrid plan keeps approximately 15-second timestamped music observations but groups them
-into approximately 60-second story/image scenes. This preserves small musical changes without paying
-for a story call and two image calls for every observation.
+The hybrid plan keeps fine timestamped music observations inside larger story/image scenes. The
+committed defaults live in `src/bard_core/config.py` and are mirrored in `configs/timing.default.env`.
+This preserves small musical changes without paying for a story call and two image calls for every
+observation.
 
 The story bible now selects one deterministic world profile from the first available music observations.
 The same descriptor chooses the same world, while different descriptors can move the story into places

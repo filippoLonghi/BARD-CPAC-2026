@@ -53,8 +53,8 @@ docker compose run --rm --service-ports `
   --out-dir /workspace/runs/dark-suspense-docker-imagen
 ```
 
-This is a paid test. `dark_suspense.ogg` is about 140 seconds, so the defaults produce three scenes
-and six images. The Imagen portion is approximately `$0.12`:
+This is a paid test. `dark_suspense.ogg` is about 140 seconds, so the number of scenes follows the
+timing defaults in `src/bard_core/config.py`. The Imagen portion is approximately:
 
 ```text
 number of scenes * 2 * $0.02

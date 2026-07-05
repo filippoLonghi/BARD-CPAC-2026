@@ -621,6 +621,25 @@ class ImageAssetTests(TestCase):
         self.assertEqual(send.call_args.kwargs["host"], "host.docker.internal")
         self.assertEqual(send.call_args.kwargs["ready_port"], 5007)
         self.assertEqual(send.call_args.kwargs["ready_bind_host"], "0.0.0.0")
+        self.assertTrue(send.call_args.kwargs["include_images"])
+
+    def test_send_osc_replay_auto_uses_sibling_processing_audio_and_images(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            story_path = tmp_path / "story.json"
+            audio_path = tmp_path / "processing_audio.wav"
+            audio_path.write_bytes(b"fake")
+            write_json(
+                story_path,
+                story_json_from_fragments([StoryFragment(id=1, mood="CALM", text="A cat waits.")]),
+            )
+
+            with patch("bard_core.cli.send_fragments_to_processing") as send:
+                main(["send-osc", "--story-json", str(story_path), "--delay", "0"])
+
+        self.assertTrue(send.call_args.kwargs["include_images"])
+        self.assertIsNone(send.call_args.kwargs["audio_path"])
+        self.assertEqual(send.call_args.kwargs["processing_audio_path"], audio_path.resolve())
 
     def test_send_osc_processing_playback_converts_audio_for_processing(self) -> None:
         with TemporaryDirectory() as tmp:

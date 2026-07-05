@@ -143,6 +143,7 @@ def run_sequential_pipeline(
 
     music_segments: list[MusicSegment] = []
     fragments: list[StoryFragment] = []
+    startup_buffer_fragments = 1
     bible: dict[str, object] = {}
     state: dict[str, object] = {}
     full_story = ""
@@ -339,7 +340,8 @@ def run_sequential_pipeline(
                         tracer.log("FRAGMENT ready late", fragment=fragment_id, delay_s=late_by)
                 tracer.log("OSC send fragment", fragment=fragment_id, final=index == len(chunk_plans) - 1)
                 osc.send(fragment, final=index == len(chunk_plans) - 1)
-                if index == 0:
+                if playback_started_at is None and len(fragments) >= startup_buffer_fragments:
+                    tracer.log("STARTUP buffer ready", fragments=len(fragments))
                     if processing_delay_s > 0:
                         tracer.log("PROCESSING settle", seconds=processing_delay_s)
                         osc.settle(processing_delay_s)

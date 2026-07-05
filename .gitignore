@@ -5,6 +5,8 @@
 .uv-python/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+*.egg-info/
 
 # Local configuration and credentials
 .env

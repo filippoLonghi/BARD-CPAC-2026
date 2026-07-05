@@ -14,9 +14,7 @@ audio file
 The new code lives in `src/bard_core`.
 
 - `contracts.py`: shared JSON/data contracts.
-- `audio/clap_provider.py`: reuses the wrapped hackathon CLAP implementation.
 - `audio/gemini_provider.py`: Vertex/Gemini audio analysis for a cloud-light path.
-- `story/local_mistral.py`: reuses the wrapped hackathon local Mistral story generator.
 - `audio/chunks.py`: saves independently analyzable WAV windows for sequential execution.
 - `story/music_translation.py`: musical observations to music-free dramatic directions.
 - `story/gemini_story.py`: persistent symbolic-adventure bible, deterministic audio-selected world profile, continuity state, and two visual assets per beat.
@@ -27,23 +25,19 @@ The new code lives in `src/bard_core`.
 - Before playback, Python sends `/prime`; Processing loads scene 1 and replies `/primed`.
 - `api.py`: small FastAPI service for Cloud Run experiments.
 
-## Local Modes
+Legacy CLAP/Mistral wrappers still exist in the source tree for reference, but the active project
+pipeline is `bard run-fragments` with Gemini/Vertex story generation.
 
-Prototype-compatible mode:
-
-```text
-BARD_AUDIO_PROVIDER=clap
-BARD_STORY_PROVIDER=local
-```
-
-Cloud-oriented mode:
+## Active Mode
 
 ```text
-BARD_AUDIO_PROVIDER=gemini
-BARD_STORY_PROVIDER=vertex
+audio analysis: Gemini / Vertex AI
+story generation: Gemini / Vertex AI
+image assets: Openverse, Imagen, or Replicate when enabled
 ```
 
-The cloud-oriented mode avoids hosting CLAP or Mistral yourself. It calls Vertex AI managed models and is the cheapest path to a deployable Cloud Run service.
+The active mode avoids hosting CLAP or Mistral yourself. It calls Vertex AI managed models and is
+the current path for local Docker/Processing runs.
 
 ## Persistence On GCP
 

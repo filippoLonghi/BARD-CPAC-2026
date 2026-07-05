@@ -37,24 +37,26 @@ one is late or incomplete, Python logs the delay and Processing holds the curren
 
 ## Hybrid Call Plan
 
-The defaults are 15-second musical observations grouped into 60-second story scenes. For a
-281-second recording such as `arabesque.mp3`, this is approximately:
+The default call count depends on `BARD_FRAGMENT_TARGET_S` and
+`BARD_MUSIC_WINDOWS_PER_FRAGMENT` in `src/bard_core/config.py`. For a 281-second recording such as
+`arabesque.mp3`, estimate the hybrid design as one audio call per story fragment, with multiple
+fine music observations inside that call:
 
 | Stage | Old design | Hybrid design |
 |---|---:|---:|
-| Fine music observations | 19 | 19 |
-| Gemini audio calls | 19 | 5 |
+| Fine music observations | 19 | 18 |
+| Gemini audio calls | 19 | 9 |
 | Music-to-story LLM calls | 19 | 0 (local mapping) |
-| Story calls, including bible | 20 | 6 |
-| Images at two per story scene | 38 | 10 |
+| Story calls, including bible | 20 | 10 |
+| Images at two per story scene | 38 | 18 |
 
 At the documented Imagen 4 Fast price of `$0.02/image`, the image portion falls from about `$1.14`
-to `$0.20`. Openverse remains `$0` for image API usage. As of June 14, 2026, Gemini 2.5 Flash
+to `$0.36`. Openverse remains `$0` for image API usage. As of June 14, 2026, Gemini 2.5 Flash
 standard pricing lists audio input at `$1/1M audio tokens`, ordinary text/image/video input at
 `$0.30/1M tokens`, and text output at `$2.50/1M tokens`. Grouping does not remove the cost of
 listening to the complete recording, but it removes repeated prompt/output overhead and 19 separate
 music-to-story LLM calls. A practical Arabesque hybrid run should normally keep Gemini analysis and
-story cost in the low cents; allow roughly `$0.02-$0.06`, then add `$0.20` for 10 Imagen Fast images.
+story cost in the low cents; allow roughly `$0.02-$0.06`, then add `$0.36` for 18 Imagen Fast images.
 Every run writes planned counts under `run_manifest.json` at `metadata.estimated_api_calls`.
 
 Pricing source: [Google Cloud generative AI pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing).

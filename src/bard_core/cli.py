@@ -136,7 +136,13 @@ def build_parser() -> argparse.ArgumentParser:
     osc.add_argument("--host", default=None)
     osc.add_argument("--port", type=int, default=None)
     osc.add_argument("--delay", type=float, default=2.0)
-    osc.add_argument("--include-images", action="store_true", help="Also send /image messages for local image assets.")
+    osc.add_argument(
+        "--include-images",
+        action="store_true",
+        default=True,
+        help="Send /image messages for local image assets. Enabled by default for replay.",
+    )
+    osc.add_argument("--no-images", dest="include_images", action="store_false", help="Replay text only.")
     osc.add_argument("--audio", default=None, help="Optional source audio to play in sync with /start.")
     osc.add_argument(
         "--playback",
@@ -249,14 +255,18 @@ def main(argv: list[str] | None = None) -> None:
         fragments = story_fragments_from_json(story_json_path)
         audio_path = Path(args.audio).expanduser() if args.audio else None
         processing_audio_path = None
+        sibling_processing_audio = story_json_path.parent / "processing_audio.wav"
+        if not audio_path and sibling_processing_audio.exists():
+            processing_audio_path = sibling_processing_audio.expanduser().resolve()
         if args.playback == "processing":
-            if not audio_path:
+            if not audio_path and not processing_audio_path:
                 parser.error("send-osc --playback processing requires --audio.")
             target_audio_path = story_json_path.parent / "processing_audio.wav"
-            if audio_path.expanduser().resolve() == target_audio_path.expanduser().resolve():
-                processing_audio_path = audio_path.expanduser().resolve()
-            else:
-                processing_audio_path = convert_audio_to_wav(audio_path, target_audio_path)
+            if audio_path:
+                if audio_path.expanduser().resolve() == target_audio_path.expanduser().resolve():
+                    processing_audio_path = audio_path.expanduser().resolve()
+                else:
+                    processing_audio_path = convert_audio_to_wav(audio_path, target_audio_path)
             audio_path = None
         send_fragments_to_processing(
             fragments=fragments,

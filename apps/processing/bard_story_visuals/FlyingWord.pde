@@ -1,15 +1,18 @@
 class FlyingWord {
   String text;
-  PVector target, pos, vel, acc;
+  PVector target, pos, startPos, vel, acc;
   int sentenceId; // forse non lo sto più usando
   boolean active = false;
   boolean locked = false;
   float angle;
+  float startAngle;
   float currentGlow = 0;
   float targetGlow  = 0;
   float colorVariation; //varia un pochino il colore di ciascuna parola randomly
   float flightSpeed  = 8.8;
   float opacity = 255;
+  int flightStartMs = 0;
+  int flightEndMs = 1;
 
 
   FlyingWord(String text, float targetX, float targetY, int sentenceId) {
@@ -26,38 +29,32 @@ class FlyingWord {
     else if (side == 1) pos = new PVector(width + dist, random(height));
     else if (side == 2) pos = new PVector(random(width), height + dist);
     else               pos = new PVector(-dist, random(height));
+    startPos = pos.copy();
 
     vel = new PVector(0, 0);
     acc = new PVector(0, 0);
     angle = random(-0.5f, 0.5f);
+    startAngle = angle;
   }
 
-  void update() {
-    currentGlow = lerp(currentGlow, targetGlow, 0.1f);
-    if (locked) return;
+  void scheduleFlight(int startMs, int endMs) {
+    flightStartMs = max(0, startMs);
+    flightEndMs = max(flightStartMs + 1, endMs);
+  }
 
-    PVector desired = PVector.sub(target, pos);
-    float d = desired.mag();
-    if (d < 1) {
-      pos   = target.copy();
-      angle = 0;
-      locked = true;
+  void update(int elapsedMs) {
+    currentGlow = lerp(currentGlow, targetGlow, 0.1f);
+    if (elapsedMs < flightStartMs) {
+      active = false;
       return;
     }
-    
-    float speed = flightSpeed;
-    if (d < 150) {
-      speed = map(d, 0, 150, 0.5f, flightSpeed);
-    }
-    desired.setMag(speed);
-    
-    PVector steer = PVector.sub(desired, vel);
-    steer.limit(0.25f);
-    acc.add(steer);
-    vel.add(acc);
-    pos.add(vel);
-    acc.mult(0);
-    angle = lerp(angle, 0, 0.08f);
+
+    active = true;
+    float progress = constrain((elapsedMs - flightStartMs) / (float)(flightEndMs - flightStartMs), 0, 1);
+    pos.x = lerp(startPos.x, target.x, progress);
+    pos.y = lerp(startPos.y, target.y, progress);
+    angle = lerp(startAngle, 0, progress);
+    locked = progress >= 1.0f;
   }
 
   void lockToTarget() {

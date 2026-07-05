@@ -1,19 +1,26 @@
 from __future__ import annotations
 
+"""Legacy batch pipeline kept for reference.
+
+The active CPAC pipeline is ``bard run-fragments`` implemented in
+``bard_core.pipeline_sequential``. This module is intentionally not imported by
+the active CLI.
+"""
+
 from pathlib import Path
 
-from .audio import analyze_with_clap, analyze_with_gemini
-from .config import BardSettings
-from .contracts import PipelineResult
-from .images import generate_images_for_fragments
-from .story import (
+from ..audio import analyze_with_clap, analyze_with_gemini
+from ..config import BardSettings
+from ..contracts import PipelineResult
+from ..images import generate_images_for_fragments
+from ..story import (
     generate_story_with_gemini,
     generate_story_with_local_mistral,
     translate_music_to_story_cues,
 )
-from .storage import upload_directory_to_gcs
-from .transport import send_fragments_to_processing
-from .utils import compute_chunk_and_words, detect_audio_duration, estimate_segment_count, make_run_id
+from ..storage import upload_directory_to_gcs
+from ..transport import send_fragments_to_processing
+from ..utils import compute_chunk_and_words, detect_audio_duration, estimate_segment_count, make_run_id
 
 
 def run_pipeline(

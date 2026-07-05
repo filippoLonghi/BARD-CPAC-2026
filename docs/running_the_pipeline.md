@@ -50,20 +50,21 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
   --out-dir runs\arabesque-imagen
 ```
 
-With default 60-second scenes, Arabesque produces about five scenes and ten images. At
-`$0.02` per Imagen 4 Fast image, the image portion is approximately `$0.20`.
+The number of scenes depends on the committed timing defaults in `src/bard_core/config.py` or any CLI
+overrides. At `$0.02` per Imagen 4 Fast image, the image portion is roughly
+`scene_count * 2 * $0.02` when using two image assets per scene.
 
 ## Replay Existing Results Without APIs
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
   --story-json runs\arabesque-hybrid-test\story.json `
-  --audio data\audio\arabesque.mp3 `
-  --include-images `
   --delay 0
 ```
 
-This makes no Gemini, Imagen, Openverse, or GCP calls. Use it for Processing tests.
+This makes no Gemini, Imagen, Openverse, or GCP calls. Saved images are replayed by default. If the
+run folder contains `processing_audio.wav`, audio is also preloaded in Processing and starts on
+`/start`; otherwise pass `--audio path\to\source.wav`.
 
 ## Analysis Without Processing Or Images
 
@@ -139,16 +140,17 @@ Replay-only `send-osc` parameters:
 | Parameter | Effect |
 |---|---|
 | `--story-json PATH` | Saved story and image records to replay. |
-| `--audio PATH` | Existing source audio to play with the saved timestamps. |
-| `--playback processing` | Docker Desktop mode: convert/preload audio in Processing and start it on `/start`. |
-| `--include-images` | Sends saved local image paths to Processing. |
+| `--audio PATH` | Optional source audio to play with the saved timestamps if `processing_audio.wav` is not already in the run folder. |
+| `--playback processing` | Optional explicit Docker Desktop mode: convert/preload audio in Processing and start it on `/start`. |
+| `--include-images` | Sends saved local image paths to Processing. Enabled by default. |
+| `--no-images` | Replay text without saved image paths. |
 | `--delay 0` | Delay before the replay handshake. Usually keep `0` because readiness is checked explicitly. |
 | `--duration 10` | Fallback scene duration only when saved fragments have no `start_s/end_s`. |
 | `--host` / `--port` | Override the Processing OSC destination. |
 
-Creative timing defaults live in code and the non-secret examples under `configs/timing.*.env`.
-Do not put them in the private secrets env by default. A command-line option overrides the
-corresponding setting for one run.
+Creative timing defaults live in code. `configs/timing.default.env` mirrors those defaults as a
+non-secret reference. Do not put timing values in the private secrets env by default. A command-line
+option overrides the corresponding setting for one run.
 
 ## Recommended Adjustments
 

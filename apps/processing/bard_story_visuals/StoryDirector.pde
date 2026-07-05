@@ -1,3 +1,5 @@
+final float MIN_LATE_SCENE_DURATION_S = 2.0f;
+
 class StoryDirector {
   /* classe "regista" che gestisce la playlist, 
   cambi scena, tempi e sa quando è in play
@@ -16,6 +18,7 @@ class StoryDirector {
   int currentSegmentIndex = -1;
   int lastSegmentTime = 0;
   int performanceStartTime = 0;
+  int currentSegmentEarliestEndMs = 0;
 
   int pendingImageReloadId = -1;
   int primedSegmentId = -1;
@@ -35,6 +38,7 @@ class StoryDirector {
     pendingImageReloadId = -1;
     primedSegmentId = -1;
     outroStartTime = 0;
+    currentSegmentEarliestEndMs = 0;
   }
 
   void addSegment(Segmento segment) {
@@ -70,9 +74,10 @@ class StoryDirector {
     moodManager.setMood(segment.categoria);
 
     float elapsedSeconds = performanceElapsedSeconds();
-    slideDuration = max(0.5f, segment.endSeconds - elapsedSeconds);
+    slideDuration = max(MIN_LATE_SCENE_DURATION_S, segment.endSeconds - elapsedSeconds);
 
     wordsystem.beginScene(segment.testo, slideDuration);
+    currentSegmentEarliestEndMs = millis() + round(slideDuration * 1000.0f);
 
     if (segment.id != primedSegmentId) {
       loadSegmentImages(segment);
@@ -108,6 +113,7 @@ class StoryDirector {
     
     int nextIndex = currentSegmentIndex + 1;
     if (nextIndex < playlist.size()) {
+      if (streamingMode && currentSegmentIndex >= 0 && millis() < currentSegmentEarliestEndMs) return;
       Segmento nextSegment = playlist.get(nextIndex);
       if (performanceElapsedSeconds() + 0.02f < nextSegment.startSeconds) return; // Non è ancora ora
       loadNextSegment();

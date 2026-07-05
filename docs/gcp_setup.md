@@ -298,28 +298,9 @@ Usually leave this commented because local development uses `gcloud auth applica
 # GOOGLE_APPLICATION_CREDENTIALS=...
 ```
 
-## 9. Optional Hugging Face Token For Local Models
+## 9. Hugging Face Token Not Needed
 
-You do not need a Hugging Face token for the supported GCP/Vertex path.
-
-Steps:
-
-1. Create/login to a Hugging Face account.
-2. Open https://huggingface.co/settings/tokens
-3. Create a token with read access.
-4. Add it to your private `bard-local.env`:
-
-```env
-HF_TOKEN=paste-your-token-here
-```
-
-Optional persistent login:
-
-```powershell
-huggingface-cli login
-```
-
-Never commit the token to the repo.
+You do not need a Hugging Face token for the supported `run-fragments` GCP/Vertex path.
 
 ## 10. Optional Local GPU Check
 
@@ -434,7 +415,7 @@ gcloud run deploy bard-api `
   --region $REGION `
   --service-account $SA_EMAIL `
   --allow-unauthenticated `
-  --set-env-vars "BARD_AUDIO_PROVIDER=gemini,BARD_STORY_PROVIDER=vertex,BARD_GCP_PROJECT_ID=$PROJECT_ID,BARD_GCP_LOCATION=$REGION,BARD_STORAGE_BUCKET=$BUCKET,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=true,BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001,BARD_IMAGE_LOCATION=$REGION,BARD_REMOVE_IMAGE_BACKGROUND=true,BARD_BACKGROUND_REMOVAL_PROVIDER=rembg"
+  --set-env-vars "BARD_GCP_PROJECT_ID=$PROJECT_ID,BARD_GCP_LOCATION=$REGION,BARD_STORAGE_BUCKET=$BUCKET,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=true,BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001,BARD_IMAGE_LOCATION=$REGION,BARD_REMOVE_IMAGE_BACKGROUND=true,BARD_BACKGROUND_REMOVAL_PROVIDER=rembg"
 ```
 
 For public demos, `--allow-unauthenticated` is convenient. For a real performance installation, use authenticated access.

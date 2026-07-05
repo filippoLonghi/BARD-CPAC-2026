@@ -7,6 +7,13 @@ import math
 import re
 import wave
 
+from .config import (
+    DEFAULT_FRAGMENT_MAX_S,
+    DEFAULT_FRAGMENT_MIN_S,
+    DEFAULT_FRAGMENT_TARGET_S,
+    DEFAULT_SHORT_AUDIO_THRESHOLD_S,
+)
+
 
 def make_run_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -116,10 +123,10 @@ def story_chunk_seconds(target_words: int, reading_wpm: float, coverage: float =
 def choose_balanced_fragment_count(
     duration_s: float | None,
     *,
-    target_s: float = 60.0,
-    min_s: float = 50.0,
-    max_s: float = 70.0,
-    short_audio_threshold_s: float = 120.0,
+    target_s: float = DEFAULT_FRAGMENT_TARGET_S,
+    min_s: float = DEFAULT_FRAGMENT_MIN_S,
+    max_s: float = DEFAULT_FRAGMENT_MAX_S,
+    short_audio_threshold_s: float = DEFAULT_SHORT_AUDIO_THRESHOLD_S,
 ) -> int:
     if duration_s is None or duration_s <= 0:
         return 1

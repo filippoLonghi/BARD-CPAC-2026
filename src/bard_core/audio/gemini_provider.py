@@ -21,7 +21,6 @@ SEGMENT_SCHEMA = {
             "items": {
                 "type": "OBJECT",
                 "properties": {
-                    "id": {"type": "INTEGER"},
                     "start_s": {"type": "NUMBER"},
                     "end_s": {"type": "NUMBER"},
                     "music_prompt": {"type": "STRING"},
@@ -43,7 +42,6 @@ SEGMENT_SCHEMA = {
                     "notable_events": {"type": "ARRAY", "items": {"type": "STRING"}},
                 },
                 "required": [
-                    "id",
                     "music_prompt",
                     "mood_hint",
                     "valence",

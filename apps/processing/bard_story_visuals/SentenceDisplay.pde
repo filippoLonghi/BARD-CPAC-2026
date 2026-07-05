@@ -5,10 +5,8 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
   int assembleEndMs;
   int slotEndMs;
   
-  int nextWordIndex = 0;
   float opacity = 0;
   boolean started = false;
-  boolean assembled = false;
   
   int flightBufferMs = SENTENCE_FLIGHT_BUFFER_MS; // stima di tempo che ha l'ultima parola per sistemarsi così che possa stare stabile per il stableMs
 
@@ -18,6 +16,7 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
     assembleEndMs = max(startOffsetMs + 1, assemblyOffsetMs);
     slotEndMs = max(assembleEndMs + 1, endOffsetMs);
     layoutSentence(sentence, layoutIndex);
+    scheduleWordFlights();
   }
 
   void layoutSentence(String sentence, int layoutIndex) {
@@ -57,6 +56,27 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
     }
   }
 
+  void scheduleWordFlights() {
+    int assemblyMs = max(1, assembleEndMs - slotStartMs);
+    int maxFlightMs = max(1, min(flightBufferMs, assemblyMs));
+    int minFlightMs = min(WORD_MIN_FLIGHT_MS, maxFlightMs);
+    int wordCount = max(1, words.size());
+    
+    for (int index = 0; index < words.size(); index++) {
+      FlyingWord word = words.get(index);
+      float distancePx = PVector.dist(word.startPos, word.target);
+      int naturalFlightMs = round((distancePx / WORD_FLIGHT_PX_PER_SECOND) * 1000.0f);
+      int flightMs = constrain(naturalFlightMs, minFlightMs, maxFlightMs);
+      int earliestArrivalMs = slotStartMs + flightMs;
+      int latestArrivalMs = assembleEndMs;
+      int arrivalMs = wordCount == 1
+        ? latestArrivalMs
+        : round(map(index, 0, wordCount - 1, earliestArrivalMs, latestArrivalMs));
+      arrivalMs = constrain(arrivalMs, earliestArrivalMs, latestArrivalMs);
+      word.scheduleFlight(arrivalMs - flightMs, arrivalMs);
+    }
+  }
+
   void update() {
     int elapsed = millis() - sceneStartedAt;
     if (elapsed < slotStartMs) return;
@@ -64,32 +84,9 @@ class SentenceDisplay { // gestisce la singola frase, spazio e animazione
     started = true;
     opacity = min(255, opacity + 18);
 
-    int totalTimeForAssembly = assembleEndMs - slotStartMs; 
-    int spawnDuration = max(100, totalTimeForAssembly - flightBufferMs); // tempo che ha di lancio parola
-    
-    float progress = constrain((elapsed - slotStartMs) / (float)spawnDuration, 0, 1);
-    
-    int shouldBeActive = min(words.size(), ceil(progress * words.size())); // divisione fattta strana per dire ogni quanto deve partire una parola
-    
-    while (nextWordIndex < shouldBeActive) {
-      words.get(nextWordIndex).active = true;
-      nextWordIndex++;
-    }
-
     for (FlyingWord word : words) {
-      if (word.active) word.update();
+      word.update(elapsed);
     }
-
-    /*// The scene deadline is authoritative. Physical travel may vary by screen size,
-    // so snap unfinished words into place before the guaranteed reading interval.
-    if (!assembled && elapsed >= assembleEndMs) {
-      for (FlyingWord word : words) {
-        word.active = true;
-        word.lockToTarget();
-      }
-      nextWordIndex = words.size();
-      assembled = true;
-    }*/
 
     if (elapsed >= slotEndMs) {
       opacity = max(0, opacity - 21);

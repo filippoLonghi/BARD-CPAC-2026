@@ -6,6 +6,16 @@ import os
 import warnings
 
 
+# Shared project defaults for the active run-fragments pipeline.
+# Change these values when the team wants a new committed default behavior.
+DEFAULT_STORY_WPM = 70.0
+DEFAULT_FRAGMENT_TARGET_S = 60.0
+DEFAULT_FRAGMENT_MIN_S = 50.0
+DEFAULT_FRAGMENT_MAX_S = 70.0
+DEFAULT_SHORT_AUDIO_THRESHOLD_S = 120.0
+DEFAULT_MUSIC_WINDOWS_PER_FRAGMENT = 2
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -132,14 +142,14 @@ class BardSettings:
             os.environ.get("BARD_STORY_WPM")
             or os.environ.get("BARD_TARGET_DISPLAY_WPM")
             or legacy_wpm
-            or "70"
+            or str(DEFAULT_STORY_WPM)
         )
         return cls(
             root_dir=root,
             output_dir=output_dir,
             labelbank_path=labelbank_path,
-            audio_provider=env_str("BARD_AUDIO_PROVIDER", "clap").lower(),
-            story_provider=env_str("BARD_STORY_PROVIDER", "local").lower(),
+            audio_provider=env_str("BARD_AUDIO_PROVIDER", "gemini").lower(),
+            story_provider=env_str("BARD_STORY_PROVIDER", "vertex").lower(),
             gcp_project_id=os.environ.get("BARD_GCP_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT"),
             gcp_location=env_str("BARD_GCP_LOCATION", os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")),
             vertex_text_model=env_str("BARD_VERTEX_TEXT_MODEL", "gemini-2.5-flash"),
@@ -166,16 +176,16 @@ class BardSettings:
             default_chunk_s=env_float("BARD_DEFAULT_CHUNK_S", 30.0),
             default_wpm=env_float("BARD_READING_WPM", 120.0),
             story_wpm=float(story_wpm),
-            fragment_target_s=env_float("BARD_FRAGMENT_TARGET_S", 60.0),
-            fragment_min_s=env_float("BARD_FRAGMENT_MIN_S", 50.0),
-            fragment_max_s=env_float("BARD_FRAGMENT_MAX_S", 70.0),
-            short_audio_threshold_s=env_float("BARD_SHORT_AUDIO_THRESHOLD_S", 120.0),
+            fragment_target_s=env_float("BARD_FRAGMENT_TARGET_S", DEFAULT_FRAGMENT_TARGET_S),
+            fragment_min_s=env_float("BARD_FRAGMENT_MIN_S", DEFAULT_FRAGMENT_MIN_S),
+            fragment_max_s=env_float("BARD_FRAGMENT_MAX_S", DEFAULT_FRAGMENT_MAX_S),
+            short_audio_threshold_s=env_float("BARD_SHORT_AUDIO_THRESHOLD_S", DEFAULT_SHORT_AUDIO_THRESHOLD_S),
             story_language=env_str("BARD_STORY_LANGUAGE", "English"),
             story_level=env_str("BARD_STORY_LEVEL", "children"),
             text_coverage=env_float("BARD_TEXT_COVERAGE", 0.72),
             target_words_per_fragment=env_int("BARD_TARGET_WORDS_PER_FRAGMENT", 72),
             music_window_s=env_float_optional("BARD_MUSIC_WINDOW_S"),
-            music_windows_per_fragment=env_int("BARD_MUSIC_WINDOWS_PER_FRAGMENT", 4),
+            music_windows_per_fragment=env_int("BARD_MUSIC_WINDOWS_PER_FRAGMENT", DEFAULT_MUSIC_WINDOWS_PER_FRAGMENT),
             story_scene_s=env_float("BARD_STORY_SCENE_S", 60.0),
             processing_startup_delay_s=env_float("BARD_PROCESSING_STARTUP_DELAY_S", 1.5),
             use_4bit=env_bool("BARD_USE_4BIT", True),
