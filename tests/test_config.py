@@ -11,8 +11,13 @@ from bard_core.config import (
     DEFAULT_FRAGMENT_MAX_S,
     DEFAULT_FRAGMENT_MIN_S,
     DEFAULT_FRAGMENT_TARGET_S,
+    DEFAULT_LIVE_MUSIC_WINDOWS_PER_FRAGMENT,
+    DEFAULT_LIVE_STARTUP_BUFFER_FRAGMENTS,
+    DEFAULT_LIVE_STORY_SCENE_S,
+    DEFAULT_LIVE_STORY_WPM,
     DEFAULT_MUSIC_WINDOWS_PER_FRAGMENT,
     DEFAULT_SHORT_AUDIO_THRESHOLD_S,
+    DEFAULT_STARTUP_BUFFER_FRAGMENTS,
     DEFAULT_STORY_WPM,
     BardSettings,
 )
@@ -37,6 +42,11 @@ class ConfigTests(TestCase):
         self.assertEqual(settings.fragment_max_s, DEFAULT_FRAGMENT_MAX_S)
         self.assertEqual(settings.short_audio_threshold_s, DEFAULT_SHORT_AUDIO_THRESHOLD_S)
         self.assertEqual(settings.music_windows_per_fragment, DEFAULT_MUSIC_WINDOWS_PER_FRAGMENT)
+        self.assertEqual(settings.startup_buffer_fragments, DEFAULT_STARTUP_BUFFER_FRAGMENTS)
+        self.assertEqual(settings.live_story_wpm, DEFAULT_LIVE_STORY_WPM)
+        self.assertEqual(settings.live_music_windows_per_fragment, DEFAULT_LIVE_MUSIC_WINDOWS_PER_FRAGMENT)
+        self.assertEqual(settings.live_story_scene_s, DEFAULT_LIVE_STORY_SCENE_S)
+        self.assertEqual(settings.live_startup_buffer_fragments, DEFAULT_LIVE_STARTUP_BUFFER_FRAGMENTS)
 
     def test_audio_schema_does_not_require_model_generated_ids_or_old_optional_fields(self) -> None:
         segment_schema = SEGMENT_SCHEMA["properties"]["segments"]["items"]

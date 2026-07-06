@@ -12,6 +12,7 @@ and cost examples.
 ```powershell
 $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
+$GCP_KEY=Join-Path $WORKSPACE "Project\secrets\bard-gcp-key.json"
 
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[api,cloud,dev]"
@@ -170,25 +171,37 @@ python -m bard_core --env-file "$ENV_FILE" send-osc `
   --delay 0
 ```
 
-## Planned-Duration Live Simulation
+## Live Test Path
 
-This is not microphone capture yet. It uses an uploaded file fragment by fragment, but plans the story
-against a known performance duration:
+For Windows microphone caveats, use [docker.md](docker.md). `run-live` records microphone chunks
+only; file-based tests remain under `run-fragments --audio`. On Windows laptops, run microphone live
+mode locally from the project `.venv` because Docker Desktop often cannot see the built-in mic.
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio path\to\recorded-performance.wav `
-  --chunk-seconds 20 `
-  --planned-duration 600 `
+python -m bard_core --env-file "$ENV_FILE" run-live `
+  --duration-seconds 60 `
+  --chunk-seconds 15 `
+  --music-window-seconds 15 `
+  --startup-buffer-fragments 2 `
+  --input-device 5 `
   --generate-images `
   --image-provider openverse `
-  --send-osc
+  --out-dir runs\live-mic-openverse
 ```
 
-If the file ends before the planned duration, the final available fragment is explicitly told to
-resolve the story. True microphone/live capture still needs a recorder that closes and queues each WAV
-window while the performance continues; the sequential runner and streaming OSC class are the reusable
-downstream foundation for that worker.
+If live recording ends before the planned duration, the final available fragment is explicitly told to
+resolve the story. Use `run-live --list-input-devices` to see what BARD can actually access. With
+`--generate-images`, BARD prepares the configured startup buffer as complete story/image fragments
+before Processing starts.
+
+Replay the saved live run later with the combined recording:
+
+```powershell
+python -m bard_core --env-file "$ENV_FILE" replay-live `
+  --run-dir runs\live-mic-openverse `
+  --playback python `
+  --delay 0
+```
 
 ## Cost Formula
 

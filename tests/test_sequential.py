@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import monotonic
 from unittest import TestCase
 from unittest.mock import patch
 import sys
@@ -19,6 +20,7 @@ from bard_core.config import (
     BardSettings,
 )
 from bard_core.contracts import ImageAsset, MusicSegment, StoryFragment
+from bard_core.pipeline_live import LiveAudioChunk, _fragment_for_live_visual_clock, run_live_pipeline
 from bard_core.pipeline_sequential import _processing_visible_path, _validate_scene_ready, run_sequential_pipeline
 from bard_core.progress import PipelineTracer
 from bard_core.story.gemini_story import _word_count, narrative_phase
@@ -27,6 +29,21 @@ from bard_core.utils import choose_balanced_fragment_count, music_window_plan, t
 
 
 class SequentialPipelineTests(TestCase):
+    def test_live_osc_reschedules_late_fragment_to_visible_window(self) -> None:
+        fragment = StoryFragment(id=4, mood="CALM", text="Final text.", start_s=45.0, end_s=60.0)
+
+        adjusted = _fragment_for_live_visual_clock(
+            fragment,
+            visual_started_at=monotonic() - 70.0,
+            chunk_s=15.0,
+            tracer=PipelineTracer(),
+        )
+
+        self.assertGreater(adjusted.start_s or 0.0, 69.0)
+        self.assertAlmostEqual((adjusted.end_s or 0.0) - (adjusted.start_s or 0.0), 15.0, places=2)
+        self.assertEqual(fragment.start_s, 45.0)
+        self.assertEqual(fragment.end_s, 60.0)
+
     def test_audio_is_split_into_exact_requested_fragment_count(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -308,7 +325,7 @@ class SequentialPipelineTests(TestCase):
             self.assertTrue((out_dir / "debug" / "scene_cards.json").exists())
             self.assertTrue((out_dir / "audio_chunks" / "segment_001.wav").exists())
 
-    def test_first_fragment_is_complete_before_start_and_later_fragments_follow_after_playback(self) -> None:
+    def test_startup_buffer_fragments_are_complete_before_start(self) -> None:
         events: list[str] = []
 
         class FakeOsc:
@@ -359,14 +376,146 @@ class SequentialPipelineTests(TestCase):
                         image_provider="openverse",
                         send_osc=True,
                         startup_delay_s=0,
+                        startup_buffer_fragments=2,
                         output_dir=out_dir,
                     )
 
         self.assertLess(events.index("send-1"), events.index("prime"))
+        self.assertLess(events.index("send-2"), events.index("prime"))
         self.assertLess(events.index("prime"), events.index("play"))
-        self.assertLess(events.index("play"), events.index("analysis-2-after-play-1"))
-        self.assertIn("send-2", events)
+        self.assertLess(events.index("play"), events.index("analysis-3-after-play-1"))
         self.assertIn("send-3", events)
+
+    def test_live_pipeline_buffers_complete_fragments_and_never_uses_playback(self) -> None:
+        events: list[str] = []
+
+        class FakeOsc:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            def start(self) -> None:
+                events.append("osc-startup")
+
+            def await_ready(self, timeout_s: float) -> None:
+                events.append("ready")
+
+            def send(self, fragment: StoryFragment, *, final: bool = False) -> None:
+                events.append(f"send-{fragment.id}-final-{int(final)}")
+
+            def send_images(self, fragment: StoryFragment) -> None:
+                events.append(f"send-images-{fragment.id}")
+
+            def settle(self, delay_s: float) -> None:
+                events.append("settle")
+
+            def prime(self, timeout_s: float) -> None:
+                events.append("prime")
+
+            def play(self) -> None:
+                events.append("play")
+
+            def finish(self) -> None:
+                events.append("finish")
+
+            def set_processing_audio(self, audio_path: str) -> None:
+                events.append("audio")
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out_dir = root / "live"
+            chunk_1 = root / "chunk_1.wav"
+            chunk_2 = root / "chunk_2.wav"
+            self._write_wav(chunk_1, seconds=1)
+            self._write_wav(chunk_2, seconds=1)
+
+            def fake_analysis(*args, **kwargs):
+                fragment_id = kwargs["first_segment_id"]
+                return [
+                    MusicSegment(
+                        id=fragment_id,
+                        start_s=kwargs["start_s"],
+                        end_s=kwargs["end_s"],
+                        music_prompt="music",
+                        mood_hint="CALM",
+                    )
+                ]
+
+            def fake_story(segment, settings, **kwargs):
+                fragment_id = kwargs["fragment_index"] + 1
+                return (
+                    StoryFragment(
+                        id=fragment_id,
+                        mood="CALM",
+                        text=f"Live fragment {fragment_id}.",
+                        start_s=segment.start_s,
+                        end_s=segment.end_s,
+                        keywords=["live"],
+                        image_assets=[
+                            ImageAsset(role="background", label="bg", prompt="bg"),
+                            ImageAsset(role="subject", label="subject", prompt="subject"),
+                        ],
+                    ),
+                    {"last_event": f"live fragment {fragment_id}"},
+                )
+
+            def fake_images(fragments, settings, output_dir, **kwargs):
+                fragment = fragments[0]
+                events.append(f"image-start-{fragment.id}")
+                output_dir.mkdir(parents=True, exist_ok=True)
+                for asset in fragment.image_assets:
+                    path = output_dir / f"{fragment.id}_{asset.role}.png"
+                    path.write_bytes(b"image")
+                    asset.local_path = str(path)
+                    asset.status = "retrieved"
+                events.append(f"image-done-{fragment.id}")
+                return {
+                    "planned_image_assets": 2,
+                    "generated_image_assets": 2,
+                    "failed_image_assets": 0,
+                    "estimated_cost_usd": 0.0,
+                }
+
+            def fake_chunks(*args, **kwargs):
+                yield LiveAudioChunk(id=1, path=chunk_1, start_s=0, end_s=1, final_available=False)
+                yield LiveAudioChunk(id=2, path=chunk_2, start_s=1, end_s=2, final_available=True)
+
+            with patch.multiple(
+                "bard_core.pipeline_live",
+                ProcessingOscStream=FakeOsc,
+                _ensure_microphone_dependencies=lambda: None,
+                _record_live_chunks=fake_chunks,
+                analyze_chunk_windows_with_gemini=fake_analysis,
+                create_story_bible=lambda segments, settings, total: {"title": "Live", "beat_plan": ["one", "two", "three"]},
+                generate_story_fragment_with_gemini=fake_story,
+                generate_images_for_fragments=fake_images,
+                upload_directory_to_gcs=lambda **kwargs: "gs://test/live",
+            ):
+                result = run_live_pipeline(
+                    settings=_settings(root),
+                    duration_seconds=3,
+                    chunk_s=1,
+                    generate_images=True,
+                    image_provider="openverse",
+                    startup_delay_s=0,
+                    startup_buffer_fragments=2,
+                    output_dir=out_dir,
+                )
+
+            self.assertEqual(len(result.fragments), 2)
+            self.assertFalse(result.metadata["complete"])
+            self.assertEqual(result.metadata["chunk_s"], 1)
+            self.assertEqual(result.metadata["startup_buffer_fragments"], 2)
+            self.assertTrue((out_dir / "recorded_audio.wav").exists())
+            self.assertEqual(result.metadata["recorded_audio_path"], str(out_dir / "recorded_audio.wav"))
+            self.assertNotIn("audio", events)
+            self.assertLess(events.index("image-done-1"), events.index("send-1-final-0"))
+            self.assertLess(events.index("image-done-2"), events.index("send-2-final-0"))
+            self.assertLess(events.index("send-1-final-0"), events.index("prime"))
+            self.assertLess(events.index("send-images-1"), events.index("prime"))
+            self.assertLess(events.index("send-2-final-0"), events.index("prime"))
+            self.assertLess(events.index("send-images-2"), events.index("prime"))
+            self.assertLess(events.index("prime"), events.index("play"))
+            self.assertLess(events.index("play"), events.index("finish"))
 
     def _patched_pipeline(self, out_dir: Path, fake_analysis=None):
         def fake_generate_story(segment, settings, **kwargs):
@@ -482,5 +631,10 @@ def _settings(tmp_path: Path) -> BardSettings:
         music_windows_per_fragment=1,
         story_scene_s=60,
         processing_startup_delay_s=0,
+        startup_buffer_fragments=2,
+        live_story_wpm=70,
+        live_music_windows_per_fragment=2,
+        live_story_scene_s=30,
+        live_startup_buffer_fragments=2,
         use_4bit=False,
     )

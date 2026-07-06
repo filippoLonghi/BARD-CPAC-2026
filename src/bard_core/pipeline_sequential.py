@@ -43,6 +43,7 @@ def run_sequential_pipeline(
     short_audio_threshold_s: float | None = None,
     music_windows_per_fragment: int | None = None,
     startup_delay_s: float | None = None,
+    startup_buffer_fragments: int | None = None,
     playback_mode: str = "python",
     generate_images: bool = False,
     image_provider: str | None = None,
@@ -84,6 +85,10 @@ def run_sequential_pipeline(
         fragment_count = automatic_fragment_count
     processing_delay_s = (
         settings.processing_startup_delay_s if startup_delay_s is None else max(0.0, startup_delay_s)
+    )
+    effective_startup_buffer_fragments = max(
+        1,
+        int(startup_buffer_fragments if startup_buffer_fragments is not None else settings.startup_buffer_fragments),
     )
 
     if send_osc and not generate_images:
@@ -143,7 +148,6 @@ def run_sequential_pipeline(
 
     music_segments: list[MusicSegment] = []
     fragments: list[StoryFragment] = []
-    startup_buffer_fragments = 1
     bible: dict[str, object] = {}
     state: dict[str, object] = {}
     full_story = ""
@@ -324,6 +328,7 @@ def run_sequential_pipeline(
                 keep_audio_chunks=keep_audio_chunks,
                 processing_audio_path=processing_audio_path,
                 complete=index == len(chunk_plans) - 1,
+                startup_buffer_fragments=effective_startup_buffer_fragments,
             )
             tracer.log("ARTIFACTS write", fragment=fragment_id, debug=debug_artifacts)
             result.write(
@@ -340,12 +345,12 @@ def run_sequential_pipeline(
                         tracer.log("FRAGMENT ready late", fragment=fragment_id, delay_s=late_by)
                 tracer.log("OSC send fragment", fragment=fragment_id, final=index == len(chunk_plans) - 1)
                 osc.send(fragment, final=index == len(chunk_plans) - 1)
-                if playback_started_at is None and len(fragments) >= startup_buffer_fragments:
+                if playback_started_at is None and len(fragments) >= effective_startup_buffer_fragments:
                     tracer.log("STARTUP buffer ready", fragments=len(fragments))
                     if processing_delay_s > 0:
                         tracer.log("PROCESSING settle", seconds=processing_delay_s)
                         osc.settle(processing_delay_s)
-                    tracer.log("OSC prime", fragment=fragment_id)
+                    tracer.log("OSC prime", fragment=fragments[0].id if fragments else fragment_id)
                     osc.prime(settings.processing_ready_timeout_s)
                     tracer.log("PROCESSING primed", fragment=fragment_id)
                     tracer.log("OSC start")
@@ -417,6 +422,7 @@ def _build_result(
     keep_audio_chunks: bool,
     processing_audio_path: Path | None,
     complete: bool,
+    startup_buffer_fragments: int,
 ) -> PipelineResult:
     return PipelineResult(
         run_id=run_id,
@@ -445,6 +451,7 @@ def _build_result(
             "story_scene_count": len(fragments),
             "target_word_counts": target_word_counts,
             "processing_slide_duration_s": chunk_s,
+            "startup_buffer_fragments": startup_buffer_fragments,
             "audio_provider": "gemini",
             "story_provider": "vertex",
             "story_language": settings.story_language,

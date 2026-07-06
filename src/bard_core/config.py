@@ -14,6 +14,12 @@ DEFAULT_FRAGMENT_MIN_S = 50.0
 DEFAULT_FRAGMENT_MAX_S = 70.0
 DEFAULT_SHORT_AUDIO_THRESHOLD_S = 120.0
 DEFAULT_MUSIC_WINDOWS_PER_FRAGMENT = 2
+DEFAULT_STARTUP_BUFFER_FRAGMENTS = 2
+
+DEFAULT_LIVE_STORY_WPM = 70.0
+DEFAULT_LIVE_STORY_SCENE_S = 30.0
+DEFAULT_LIVE_MUSIC_WINDOWS_PER_FRAGMENT = 2
+DEFAULT_LIVE_STARTUP_BUFFER_FRAGMENTS = 2
 
 
 def repo_root() -> Path:
@@ -109,6 +115,11 @@ class BardSettings:
     music_windows_per_fragment: int
     story_scene_s: float
     processing_startup_delay_s: float
+    startup_buffer_fragments: int
+    live_story_wpm: float
+    live_music_windows_per_fragment: int
+    live_story_scene_s: float
+    live_startup_buffer_fragments: int
     use_4bit: bool
 
     @classmethod
@@ -188,5 +199,19 @@ class BardSettings:
             music_windows_per_fragment=env_int("BARD_MUSIC_WINDOWS_PER_FRAGMENT", DEFAULT_MUSIC_WINDOWS_PER_FRAGMENT),
             story_scene_s=env_float("BARD_STORY_SCENE_S", 60.0),
             processing_startup_delay_s=env_float("BARD_PROCESSING_STARTUP_DELAY_S", 1.5),
+            startup_buffer_fragments=env_int(
+                "BARD_STARTUP_BUFFER_FRAGMENTS",
+                DEFAULT_STARTUP_BUFFER_FRAGMENTS,
+            ),
+            live_story_wpm=env_float("BARD_LIVE_STORY_WPM", DEFAULT_LIVE_STORY_WPM),
+            live_music_windows_per_fragment=env_int(
+                "BARD_LIVE_MUSIC_WINDOWS_PER_FRAGMENT",
+                DEFAULT_LIVE_MUSIC_WINDOWS_PER_FRAGMENT,
+            ),
+            live_story_scene_s=env_float("BARD_LIVE_STORY_SCENE_S", DEFAULT_LIVE_STORY_SCENE_S),
+            live_startup_buffer_fragments=env_int(
+                "BARD_LIVE_STARTUP_BUFFER_FRAGMENTS",
+                DEFAULT_LIVE_STARTUP_BUFFER_FRAGMENTS,
+            ),
             use_4bit=env_bool("BARD_USE_4BIT", True),
         )

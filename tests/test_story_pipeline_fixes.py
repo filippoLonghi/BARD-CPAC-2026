@@ -63,6 +63,11 @@ def make_test_settings(tmp_path: Path) -> BardSettings:
         music_windows_per_fragment=4,
         story_scene_s=60,
         processing_startup_delay_s=1.5,
+        startup_buffer_fragments=2,
+        live_story_wpm=70,
+        live_music_windows_per_fragment=2,
+        live_story_scene_s=30,
+        live_startup_buffer_fragments=2,
         use_4bit=False,
     )
 

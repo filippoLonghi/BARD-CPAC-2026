@@ -77,13 +77,62 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
 Inspect `story.json` and `run_manifest.json` in that output directory. Add `--debug-artifacts` and
 `--keep-audio-chunks` when you need the old verbose files or exact chunk WAVs.
 
+## Live Visuals
+
+Use `run-live` for performance-style microphone visuals. Processing shows only story, mood,
+particles, and images; neither Python nor Processing plays music during the live run. File-based
+testing stays in `run-fragments --audio`.
+
+On Windows laptops, run microphone live mode locally from the project `.venv`. Docker Desktop often
+does not expose the built-in microphone to Linux containers, so the container may have no input
+device for BARD to select:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m bard_core run-live --list-input-devices
+python -m bard_core run-live --input-device 5 --test-input-seconds 5
+```
+
+During the test, speak or clap. `MIC_OK` means BARD received a clear signal; `MIC_SIGNAL_LOW` means
+the selected device is silent, muted, blocked by Windows privacy settings, or the wrong input.
+
+Then open Processing, press **Run**, and start the local live pipeline:
+
+```powershell
+python -m bard_core --env-file "$ENV_FILE" run-live `
+  --duration-seconds 60 `
+  --chunk-seconds 15 `
+  --music-window-seconds 15 `
+  --startup-buffer-fragments 2 `
+  --input-device 5 `
+  --story-language Italian `
+  --story-level early-reader `
+  --generate-images `
+  --image-provider openverse `
+  --out-dir runs\live-mic-openverse
+```
+
+When the live run ends, BARD saves the microphone chunks and attempts to write
+`recorded_audio.wav`. To review the same live run later with recorded audio playback, keep
+Processing open and run:
+
+```powershell
+python -m bard_core --env-file "$ENV_FILE" replay-live `
+  --run-dir runs\live-mic-openverse `
+  --playback python `
+  --delay 0
+```
+
 ## Live/Sequential Behavior
 
 `run-fragments` plans the fragment boundaries from the full file, then works one fragment at a time.
 It does not analyze the full audio, write every chunk, generate the full story, or generate all images
 before playback. Fragment 1 is fully prepared first: temporary audio chunk, audio analysis, story
-text, and both required image roles (`background` and `subject`). Only then does Python prime
-Processing and send `/start`.
+text, and both required image roles (`background` and `subject`). By default BARD prepares two
+complete fragments before it primes Processing and sends `/start`; Processing still starts from
+fragment 1, with fragment 2 already queued while Python works on fragment 3. Tune this with
+`--startup-buffer-fragments`: `1` starts as soon as fragment 1 is ready, `2` starts fragment 1 with
+one ready fragment in reserve.
 
 While fragment 1 is playing, Python prepares fragment 2, then fragment 3, and so on. A later fragment
 is sent to Processing only after its story and images are ready. If it is late or incomplete, the
@@ -129,6 +178,7 @@ debug/full_story.txt
 | `--image-provider replicate` | Optional paid Replicate/FLUX experiment requiring its API token. |
 | `--max-image-assets 2` | Maximum images per scene. Current roles are `background` and `subject`; Imagen cost scales directly with this value. |
 | `--startup-delay 1.5` | Extra delay before Processing primes scene one. |
+| `--startup-buffer-fragments 2` | Complete story/image fragments to prepare before Processing starts. Use `1` for faster start, or higher values for more safety. |
 | `--playback python` | Local default. Use `processing` when Python runs inside Docker Desktop. |
 | `--send-osc` | Sends data to Processing and plays the source audio. Requires `--generate-images` so playback never starts story-only. |
 | `--debug-artifacts` | Writes verbose legacy-style JSON/text files under `debug/`. |
@@ -147,6 +197,35 @@ Replay-only `send-osc` parameters:
 | `--delay 0` | Delay before the replay handshake. Usually keep `0` because readiness is checked explicitly. |
 | `--duration 10` | Fallback scene duration only when saved fragments have no `start_s/end_s`. |
 | `--host` / `--port` | Override the Processing OSC destination. |
+
+Live-only `run-live` parameters:
+
+| Parameter | Effect |
+|---|---|
+| `--duration-seconds S` | Required planned performance/story duration. BARD does not infer it. |
+| `--list-input-devices` | List microphone/input devices visible to the current Python environment and exit. |
+| `--input-device INDEX_OR_NAME` | Select a visible `sounddevice` input device. |
+| `--test-input-seconds 5` | Record a short local/device probe and print RMS/peak levels without OSC or API calls. |
+| `--sample-rate 44100` | Recording sample rate for microphone chunks. |
+| `--chunk-seconds S` | Live story-scene length. Defaults to `BARD_LIVE_STORY_SCENE_S`, currently `30`. |
+| `--music-window-seconds S` | Fixed live music-analysis window. Use `15` with `--chunk-seconds 15` for one music window per fragment. |
+| `--startup-buffer-fragments N` | Complete live fragments to prepare before the Processing visual clock starts. Defaults to `BARD_LIVE_STARTUP_BUFFER_FRAGMENTS`, currently `2`. |
+| `--generate-images` | Enables image retrieval/generation. In live mode, generated images are sent with their fragment before Processing starts displaying that buffered fragment. |
+| `--image-provider openverse|imagen|replicate` | Image backend for delayed `/image` messages. |
+
+Replay-only `replay-live` parameters:
+
+| Parameter | Effect |
+|---|---|
+| `--run-dir PATH` | Completed live run directory containing `story.json` and `recorded_audio.wav`. |
+| `--playback python` | Play the recorded microphone WAV from local Python while Processing replays visuals. |
+| `--playback processing` | Ask Processing to play `recorded_audio.wav` on `/start`. Useful only when Processing can see that path. |
+| `--no-images` | Replay saved live text without image paths. |
+| `--duration S` | Fallback scene duration only if saved fragments have no `start_s/end_s`. Defaults to the run's live chunk length. |
+
+Live recordings are saved inside the run folder as `recorded_audio_chunks/segment_*.wav`. BARD also
+attempts to write a combined `recorded_audio.wav` at the end of the run; if that combine step fails,
+the original chunks remain available.
 
 Creative timing defaults live in code. `configs/timing.default.env` mirrors those defaults as a
 non-secret reference. Do not put timing values in the private secrets env by default. A command-line

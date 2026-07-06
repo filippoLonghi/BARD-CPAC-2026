@@ -8,7 +8,7 @@ ENV U2NET_HOME=/app/.cache/rembg
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 libsndfile1 \
+    && apt-get install -y --no-install-recommends libgomp1 libportaudio2 libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md ./

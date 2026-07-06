@@ -34,31 +34,44 @@ class ProcessingOscStream:
         self.ready_bind_host = ready_bind_host
         self.path_mapper = path_mapper
         self.started = False
+        self._send_lock = threading.Lock()
 
     def start(self) -> None:
-        self.client.send_message("/reset", [])
-        self.client.send_message("/config/duration", float(self.slide_duration_s))
-        self.client.send_message("/config/streaming", 1)
+        with self._send_lock:
+            self.client.send_message("/reset", [])
+            self.client.send_message("/config/duration", float(self.slide_duration_s))
+            self.client.send_message("/config/streaming", 1)
 
     def send(self, fragment: StoryFragment, *, final: bool = False) -> None:
-        self.client.send_message("/segment", _segment_payload(fragment, self.slide_duration_s))
-        time.sleep(0.03)
-        self.client.send_message("/keywords", [int(fragment.id), *fragment.keywords])
-        if self.include_images:
+        with self._send_lock:
+            self.client.send_message("/segment", _segment_payload(fragment, self.slide_duration_s))
+            time.sleep(0.03)
+            self.client.send_message("/keywords", [int(fragment.id), *fragment.keywords])
+            if self.include_images:
+                _send_fragment_images(self.client, fragment, self.path_mapper)
+            if final:
+                self.client.send_message("/finish", [])
+
+    def send_images(self, fragment: StoryFragment) -> None:
+        with self._send_lock:
             _send_fragment_images(self.client, fragment, self.path_mapper)
-        if final:
+
+    def finish(self) -> None:
+        with self._send_lock:
             self.client.send_message("/finish", [])
 
     def play(self) -> None:
         if not self.started:
-            self.client.send_message("/start", [])
+            with self._send_lock:
+                self.client.send_message("/start", [])
             self.started = True
 
     def settle(self, delay_s: float) -> None:
         time.sleep(max(0.0, delay_s))
 
     def set_processing_audio(self, audio_path: str) -> None:
-        self.client.send_message("/audio", [audio_path])
+        with self._send_lock:
+            self.client.send_message("/audio", [audio_path])
 
     def await_ready(self, timeout_s: float) -> None:
         self._await_response("/prepare", "/ready", timeout_s)
@@ -82,7 +95,8 @@ class ProcessingOscStream:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            self.client.send_message(request_address, [int(self.ready_port)])
+            with self._send_lock:
+                self.client.send_message(request_address, [int(self.ready_port)])
             if not ready.wait(max(0.5, timeout_s)):
                 raise RuntimeError(
                     f"Processing did not answer {request_address}. Open the BARD sketch, press Run, "

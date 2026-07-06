@@ -76,6 +76,11 @@ def test_settings(tmp_path: Path) -> BardSettings:
         music_windows_per_fragment=4,
         story_scene_s=60,
         processing_startup_delay_s=1.5,
+        startup_buffer_fragments=2,
+        live_story_wpm=70,
+        live_music_windows_per_fragment=2,
+        live_story_scene_s=30,
+        live_startup_buffer_fragments=2,
         use_4bit=False,
     )
 
@@ -556,6 +561,51 @@ class ImageAssetTests(TestCase):
         self.assertEqual(len(image_messages), 1)
         self.assertEqual(image_messages[0][0], 1)
         self.assertEqual(image_messages[0][1], 0)
+        self.assertEqual(image_messages[0][2], "subject")
+
+    def test_osc_stream_can_send_images_after_text(self) -> None:
+        with TemporaryDirectory() as tmp:
+            image_path = Path(tmp) / "cat.png"
+            image_path.write_bytes(b"fake")
+            fragment = StoryFragment(
+                id=7,
+                mood="CALM",
+                text="A cat waits.",
+                image_assets=[
+                    ImageAsset(
+                        role="subject",
+                        label="cat",
+                        prompt="cat",
+                        status="generated",
+                        local_path=str(image_path),
+                    )
+                ],
+            )
+            sent: list[tuple[str, object]] = []
+
+            class FakeClient:
+                def __init__(self, host: str, port: int) -> None:
+                    self.host = host
+                    self.port = port
+
+                def send_message(self, address: str, payload: object) -> None:
+                    sent.append((address, payload))
+
+            fake_pythonosc = SimpleNamespace(udp_client=SimpleNamespace(SimpleUDPClient=FakeClient))
+            with patch.dict(sys.modules, {"pythonosc": fake_pythonosc}):
+                stream = ProcessingOscStream(
+                    "127.0.0.1",
+                    5005,
+                    slide_duration_s=10,
+                    include_images=False,
+                )
+                stream.send(fragment)
+                stream.send_images(fragment)
+
+        self.assertIn("/segment", [address for address, _ in sent])
+        image_messages = [payload for address, payload in sent if address == "/image"]
+        self.assertEqual(len(image_messages), 1)
+        self.assertEqual(image_messages[0][0], 7)
         self.assertEqual(image_messages[0][2], "subject")
 
     def test_osc_sender_sets_processing_audio_path(self) -> None:

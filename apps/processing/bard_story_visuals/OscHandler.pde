@@ -23,6 +23,7 @@ class OscHandler {
       director.reset();
       wordsystem = new WordsSystem();
       imgSystems.clear();
+      processingAudioPath = "";
       println(">>> Playlist reset");
       return;
     }
