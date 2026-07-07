@@ -6,7 +6,7 @@ final int WORD_MIN_FLIGHT_MS = 900;
 final float WORD_FLIGHT_PX_PER_SECOND = 420.0f;
 final int MIN_WORDS_PER_SLOT = 6;
 
-class WordsSystem {
+class WordsSystem { /* classe con la gestione del paragrafo di testo e di come mandare le SentenceDisplay nei tempi necessari*/
   ArrayList<SentenceDisplay> scheduled = new ArrayList<SentenceDisplay>();
   int sentenceCounter = 0;
 

@@ -1,16 +1,7 @@
-class ImageLayer {
-  int layerIndex;
-  String role;
-  String path;
-
-  ImageLayer(int idx, String r, String p) {
-    layerIndex = idx;
-    role = r;
-    path = p;
-  }
-}
-
-class Segmento {
+class Segmento { /* segmento ricevuto da OscHandler con dentro tutte le info
+  viene poi dato allo StoryDirector per disegnare tutte le cose e fare svolgere
+  i propri compiti alle altre classi */
+  
   int id;
   String categoria;
   String testo;

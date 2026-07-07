@@ -7,17 +7,15 @@ class Nebula {
     canvas = createGraphics(width/4, height/4, P2D);
   }
 
-  // Aggiorna i pixel e disegna sul main canvas.
-  // Chiamare dentro draw(), con blendMode già in BLEND.
-  void draw(color c, float maxAlpha, float speed) {
+  void draw(color c, float maxAlpha, float speed) { //draw chiamato nel draw principale 
     timeZ += speed;
     canvas.beginDraw();
     canvas.loadPixels();
     float r = red(c), g = green(c), b = blue(c);
     
-    for (int x = 0; x < canvas.width; x++) { // qui in qualche modo si creano i perlin noise delle nuvolette
+    for (int x = 0; x < canvas.width; x++) { 
       for (int y = 0; y < canvas.height; y++) {
-        float n1  = noise(x * noiseScale, y * noiseScale, timeZ);
+        float n1  = noise(x * noiseScale, y * noiseScale, timeZ); // perlin noise
         float n2  = noise(x * noiseScale * 2.5f + 100, y * noiseScale * 2.5f + 100, timeZ * 1.5f);
         float fin = pow(lerp(n1, n2, 0.4f), 3.0f);
         float a   = constrain(map(fin, 0, 0.8f, 0, maxAlpha), 0, maxAlpha);

@@ -1,4 +1,5 @@
 class ImageParticleSystem {
+  /* classe per caricare le immagini e proiettarle come particelle*/
   final int maxParticles = 15000;
   ArrayList<PixelParticle> particles = new ArrayList<PixelParticle>();
   float displayAlpha = 255;
@@ -10,10 +11,10 @@ class ImageParticleSystem {
     img = autoCropFrames(img);
 
     boolean isBackground = role.equals("background");
-    displayAlpha = isBackground ? 125 : 255;
+    displayAlpha = isBackground ? 150 : 255; // 150 livello di opacità del background
 
     if (isBackground) {
-      img.resize(800, 0);
+      img.resize(1200, 0);
     } else {
       img.resize(500, 0);
     }

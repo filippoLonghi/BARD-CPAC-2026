@@ -49,7 +49,7 @@ ProcessingAudioPlayer processingAudioPlayer = new ProcessingAudioPlayer();
 
 // ---------- SETUP -------------
 void setup() {
-  size(600, 400, P2D);
+  size(512, 384, P2D);
   windowResizable(true);
 
   oscP5 = new OscP5(this, port);
@@ -107,7 +107,7 @@ void draw() {
   director.applyPendingImageReload();
   
   if (director.isOutro) { //se è finito fa la schermata di fine 
-    fill(currentVals.textColor); // Usa il colore di testo armonioso del mood
+    fill(currentVals.textColor); // Usa il colore del mood
     textAlign(CENTER, CENTER);
     textFont(myTitle);
     text("The End", width / 2.0, height / 2.0);
@@ -144,12 +144,12 @@ void loadSegmentImages(Segmento segment) {
 
     String role = layer.role;
     
-    // Se è la prima volta che incontriamo questo ruolo, creiamo il suo sciame di particelle
+    // se è la prima volta che incontriamo questo ruolo, creiamo il suo sciame di particelle
     if (!imgSystems.containsKey(role)) {
       imgSystems.put(role, new ImageParticleSystem());
     }
 
-    // Peschiamo il sistema GIUSTO in base al nome
+    // peschiamo il sistema GIUSTO in base al nome
     ImageParticleSystem system = imgSystems.get(role);
 
     float rx = 0;
@@ -169,7 +169,7 @@ void loadSegmentImages(Segmento segment) {
       ry = height * 0.38f;
     }
 
-    // Le vecchie particelle ricevono le nuove coordinate e i nuovi colori!
+    // le vecchie particelle ricevono le nuove coordinate e i nuovi colori
     system.loadAndConvert(layer.path, rx, ry, rw, rh, role);
   }
 }

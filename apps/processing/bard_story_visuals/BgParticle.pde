@@ -1,11 +1,11 @@
-class BgParticle {
+class BgParticle { // particella dello sfondo del mood
   float x, y, size, alphaOffset, t;
 
   BgParticle() {
     x           = random(width);
     y           = random(height);
     size        = random(1.0f, 3.0f);
-    alphaOffset = random(50.0f, 150.0f);
+    alphaOffset = random(100.0f, 150.0f);
     t           = random(1000.0f); //fase del sin per il lampeggio
   }
 

@@ -25,7 +25,7 @@ class StoryDirector {
 
   StoryDirector() {}
 
-  // Azzera tutto (usato quando riceve il segnale di reset)
+  // azzera tutto (usato quando riceve il segnale di reset)
   void reset() {
     processingAudioPlayer.close();
     playlist.clear();
@@ -57,7 +57,7 @@ class StoryDirector {
     return max(0, (millis() - performanceStartTime) / 1000.0f);
   }
 
-  // Carica in memoria i testi, le atmosfere e le immagini della nuova scena
+  // carica in memoria i testi, le atmosfere e le immagini della nuova scena
   void loadNextSegment() {
     if (playlist.size() == 0) return;
 
@@ -70,7 +70,7 @@ class StoryDirector {
     println(">>> SEGMENT " + currentSegmentIndex + " | mood: " + segment.categoria);
     println(">>> TESTO: " + segment.testo);
 
-    // Manda gli ordini ai vari "reparti" tecnici
+    // manda gli ordini ai vari "reparti" tecnici
     moodManager.setMood(segment.categoria);
 
     float elapsedSeconds = performanceElapsedSeconds();
@@ -92,18 +92,18 @@ class StoryDirector {
     isOutro = true;
     outroStartTime = millis();
     
-    // Cancella tutte le particelle delle immagini e i testi rimasti
+    // cancella tutte le particelle delle immagini e i testi rimasti
     imgSystems.clear();
     wordsystem = new WordsSystem();
     
-    // Riporta l'atmosfera al blu sereno iniziale in modo fluido
+    // riporta l'atmosfera al blu sereno iniziale in modo fluido
     moodManager.setMood("CALM"); 
   }
 
-  // Controlla l'orologio e decide se è ora di far entrare la prossima scena
+  // controlla l'orologio e decide se è ora di far entrare la prossima scena
   void advanceTimeline() {
     if (isOutro) {
-      if (millis() - outroStartTime > 5000) { // 4000 sono i millisecondi della scritta "the End"
+      if (millis() - outroStartTime > 5000) { // 5000 sono i millisecondi della scritta "the End"
         reset(); 
         wordsystem = new WordsSystem();
         imgSystems.clear();
@@ -115,21 +115,21 @@ class StoryDirector {
     if (nextIndex < playlist.size()) {
       if (streamingMode && currentSegmentIndex >= 0 && millis() < currentSegmentEarliestEndMs) return;
       Segmento nextSegment = playlist.get(nextIndex);
-      if (performanceElapsedSeconds() + 0.02f < nextSegment.startSeconds) return; // Non è ancora ora
+      if (performanceElapsedSeconds() + 0.02f < nextSegment.startSeconds) return; 
       loadNextSegment();
     }
     
     // se le scene sono finite ed è finito il tempo per mandare le cose
     else if (streamFinished && currentSegmentIndex >= 0 && currentSegmentIndex == playlist.size() - 1) {
       Segmento lastSegment = playlist.get(currentSegmentIndex);
-      // Aspetta 1 secondo di respiro dopo la fine dell'ultima scena, poi lancia "The End"
+      // aspetta 4 secondi dopo la fine dell'ultima scena, poi lancia "The End"
       if (performanceElapsedSeconds() >= lastSegment.endSeconds + 4.0f) { 
         startOutro();
       }
     }
   }
 
-  // Inserisce al volo le immagini che ci mettono tanto a caricare senza rompere lo schermo
+  // Iiserisce al volo le immagini che ci mettono tanto a caricare 
   void applyPendingImageReload() {
     if (pendingImageReloadId < 0) return;
     Segmento segment = findSegment(pendingImageReloadId);
@@ -139,7 +139,6 @@ class StoryDirector {
     }
   }
 
-  // Il Ciak di inizio
   void startShow() {
     if (playlist.size() > 0) {
       println(">>> START SHOW");

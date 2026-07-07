@@ -1,11 +1,10 @@
-class FlyingWord {
+class FlyingWord { 
+  // oggetto per ogni parola singola mandata da SentenceDisplay
   String text;
   PVector target, pos, startPos, vel, acc;
   int sentenceId; // forse non lo sto più usando
   boolean active = false;
   boolean locked = false;
-  float angle;
-  float startAngle;
   float currentGlow = 0;
   float targetGlow  = 0;
   float colorVariation; //varia un pochino il colore di ciascuna parola randomly
@@ -33,8 +32,6 @@ class FlyingWord {
 
     vel = new PVector(0, 0);
     acc = new PVector(0, 0);
-    angle = random(-0.5f, 0.5f);
-    startAngle = angle;
   }
 
   void scheduleFlight(int startMs, int endMs) {
@@ -42,26 +39,49 @@ class FlyingWord {
     flightEndMs = max(flightStartMs + 1, endMs);
   }
 
-  void update(int elapsedMs) {
-    currentGlow = lerp(currentGlow, targetGlow, 0.1f);
-    if (elapsedMs < flightStartMs) {
-      active = false;
-      return;
-    }
 
-    active = true;
-    float progress = constrain((elapsedMs - flightStartMs) / (float)(flightEndMs - flightStartMs), 0, 1);
-    pos.x = lerp(startPos.x, target.x, progress);
-    pos.y = lerp(startPos.y, target.y, progress);
-    angle = lerp(startAngle, 0, progress);
-    locked = progress >= 1.0f;
+  void update(int elapsedMs) {
+  currentGlow = lerp(currentGlow, targetGlow, 0.1f);
+  if (elapsedMs < flightStartMs) {
+    active = false;
+    return;
   }
+  active = true;
+
+  if (locked) return;
+
+  PVector desired = PVector.sub(target, pos);
+  float distance = desired.mag();
+
+  float maxSpeed = 12.0f;     
+  float maxForce = 0.7f;      
+  float brakingRadius = 130.0f; 
+
+  if (distance < brakingRadius) {
+    float m = map(distance, 0, brakingRadius, 0, maxSpeed);
+    desired.setMag(m);
+  } else {
+    desired.setMag(maxSpeed);
+  }
+
+  PVector steer = PVector.sub(desired, vel);
+  steer.limit(maxForce); 
+
+  acc.add(steer);
+  vel.add(acc);
+  pos.add(vel);
+  acc.mult(0); 
+
+  if (distance < 1.0f && vel.mag() < 0.1f) {
+    lockToTarget();
+  }
+}
 
   void lockToTarget() {
     pos = target.copy();
     vel.mult(0);
     acc.mult(0);
-    angle = 0;
+    //angle = 0;
     locked = true;
   }
 
@@ -69,7 +89,7 @@ class FlyingWord {
     textFont(myFont, fontSize);
     pushMatrix();
     translate(pos.x, pos.y);
-    rotate(angle); ///???
+    //rotate(angle); ///???
     color finalColor = lerpColor(cBase, cAccent, colorVariation);
     fill(red(finalColor), green(finalColor), blue(finalColor), opacity);
     fill(0, min(150, opacity * 0.55f));
