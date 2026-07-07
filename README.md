@@ -181,7 +181,6 @@ docker compose run --rm bard --help
 - [docs/testing_and_costs.md](docs/testing_and_costs.md): test tracks, Processing order, commands, and per-run cost.
 - [docs/timing_and_sync.md](docs/timing_and_sync.md): audio master clock, reading speed, image reveals, and free replay.
 - [docs/project_structure.md](docs/project_structure.md): where files live in the repo.
-- [docs/public_release_checklist.md](docs/public_release_checklist.md): quick checks before publishing the repo.
 - [configs/local.example.env](configs/local.example.env): local private env template.
 - [configs/timing.default.env](configs/timing.default.env): non-secret snapshot of shared timing defaults.
 
