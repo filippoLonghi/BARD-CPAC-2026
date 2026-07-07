@@ -9,13 +9,14 @@ the active CLI.
 
 from pathlib import Path
 
-from ..audio import analyze_with_clap, analyze_with_gemini
+from ..audio import analyze_with_gemini
 from ..config import BardSettings
 from ..contracts import PipelineResult
 from ..images import generate_images_for_fragments
+from .audio_analysis.clap_provider import analyze_with_clap
+from .story.local_mistral import generate_story_with_local_mistral
 from ..story import (
     generate_story_with_gemini,
-    generate_story_with_local_mistral,
     translate_music_to_story_cues,
 )
 from ..storage import upload_directory_to_gcs
@@ -51,7 +52,7 @@ def run_pipeline(
     chosen_story_provider = (story_provider or settings.story_provider).lower()
     chosen_image_provider = (image_provider or settings.image_provider).lower() if generate_images else "none"
     if generate_images and chosen_image_provider in {"", "none"}:
-        raise ValueError("Image generation is enabled. Choose --image-provider replicate, imagen, or openverse.")
+        raise ValueError("Image generation is enabled. Choose --image-provider imagen or openverse.")
 
     if chosen_audio_provider == "clap":
         music_segments = analyze_with_clap(resolved_audio, settings, chunk_s=chunk_s, top_k=1)

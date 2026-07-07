@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 from .config import BardSettings, load_env_file
-from .contracts import ImageAsset, PipelineResult, StoryFragment, read_json, story_fragments_from_json, write_json
+from .contracts import PipelineResult, StoryFragment, read_json, story_fragments_from_json, write_json
 from .audio import convert_audio_to_wav
 from .images import generate_images_for_fragments
 from .pipeline_live import list_audio_input_devices, run_live_pipeline, test_audio_input_device
@@ -16,7 +16,7 @@ from .utils import make_run_id
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="BARD cloud-ready pipeline tools.")
+    parser = argparse.ArgumentParser(description="BARD pipeline tools.")
     parser.add_argument("--env-file", default=None, help="Optional .env file. Keep real secret paths outside git.")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_story_style_arguments(sequential)
     sequential.add_argument("--generate-images", action="store_true")
-    sequential.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
+    sequential.add_argument("--image-provider", choices=["imagen", "openverse"], default=None)
     sequential.add_argument("--max-image-assets", type=int, default=2)
     sequential.add_argument("--send-osc", action="store_true")
     sequential.add_argument(
@@ -186,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_story_style_arguments(live)
     live.add_argument("--generate-images", action="store_true")
-    live.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], default=None)
+    live.add_argument("--image-provider", choices=["imagen", "openverse"], default=None)
     live.add_argument("--max-image-assets", type=int, default=2)
     live.add_argument(
         "--debug-artifacts",
@@ -226,16 +226,13 @@ def build_parser() -> argparse.ArgumentParser:
     replay_live.add_argument("--no-images", dest="include_images", action="store_false", help="Replay text only.")
 
     images = sub.add_parser("generate-images", help="Generate/retrieve image assets without running audio/story.")
-    images.add_argument("--story-json", default=None, help="Existing story.json to use as input.")
-    images.add_argument("--fake-card", action="store_true", help="Use a built-in fake story card for quick testing.")
-    images.add_argument("--fake-card-name", default="cat-wood-sun", help="Built-in fake card name.")
-    images.add_argument("--list-fake-cards", action="store_true", help="List available built-in fake cards.")
+    images.add_argument("--story-json", required=True, help="Existing story.json to use as input.")
     images.add_argument(
         "--write-input-only",
         action="store_true",
         help="Write debug/scene_cards.json and exit without images.",
     )
-    images.add_argument("--image-provider", choices=["replicate", "imagen", "openverse"], required=True)
+    images.add_argument("--image-provider", choices=["imagen", "openverse"], required=True)
     images.add_argument("--max-image-assets", type=int, default=None, help="Maximum image assets per fragment.")
     images.add_argument("--send-osc", action="store_true", help="Send the generated image assets to Processing.")
     images.add_argument("--duration", type=float, default=10.0, help="OSC slide duration when --send-osc is used.")
@@ -391,22 +388,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "generate-images":
-        if args.list_fake_cards:
-            print("Available fake cards:")
-            for name, description in fake_story_card_options().items():
-                print(f"- {name}: {description}")
-            return
-
-        if not args.fake_card and not args.story_json:
-            parser.error("generate-images requires --fake-card or --story-json.")
-        if args.fake_card and args.story_json:
-            parser.error("Use either --fake-card or --story-json, not both.")
-
-        fragments = (
-            fake_story_fragments(args.fake_card_name)
-            if args.fake_card
-            else story_fragments_from_json(Path(args.story_json).expanduser())
-        )
+        fragments = story_fragments_from_json(Path(args.story_json).expanduser())
         run_id = make_run_id()
         destination = Path(args.out_dir).expanduser() if args.out_dir else settings.output_dir / f"{run_id}-images"
         if args.write_input_only:
@@ -545,110 +527,6 @@ def _settings_with_story_overrides(settings: BardSettings, args: argparse.Namesp
     return replace(settings, **values) if values else settings
 
 
-def fake_story_card_options() -> dict[str, str]:
-    return {
-        "cat-wood-sun": "Clockwork subject plus plaza background.",
-        "girl-tower-moon": "Signal mask subject plus moon archive background.",
-        "boat-fog-lantern": "Vehicle subject plus foggy harbor background.",
-        "fox-snow-fire": "Forge helper subject plus volcanic workshop background.",
-        "door-garden-key": "Living door subject plus folk village background.",
-    }
-
-
-def fake_story_fragments(name: str = "cat-wood-sun") -> list[StoryFragment]:
-    catalog = {
-        "cat-wood-sun": StoryFragment(
-            id=1,
-            mood="CALM",
-            text="A brass clock helper crosses a ticking plaza while the town bells wake.",
-            start_s=0.0,
-            end_s=10.0,
-            image_prompt="A brass clock helper in a clockwork city plaza, unfinished painterly style.",
-            visual_motif="clock helper in ticking plaza",
-            palette="brass, teal patina, warm lamp glow",
-            motion="slow drifting layers with soft blur",
-            image_assets=[
-                _fake_asset("background", "clockwork plaza", "A loose unfinished painted clockwork city plaza, brass towers and ticking street lines, no characters, no text."),
-                _fake_asset("subject", "brass clock helper", "A simple recognizable brass clock helper, round body, teal glass face, unfinished painterly sketch texture, plain simple background, no text."),
-            ],
-        ),
-        "girl-tower-moon": StoryFragment(
-            id=1,
-            mood="ANXIOUS",
-            text="A silver signal mask waits beside a moon archive tower as star maps flutter.",
-            start_s=0.0,
-            end_s=10.0,
-            image_prompt="A silver signal mask near a moon archive tower in an unfinished storybook texture.",
-            visual_motif="signal mask near moon archive",
-            palette="ink blue, pale grey, muted violet",
-            motion="nervous vertical drift",
-            image_assets=[
-                _fake_asset("background", "moon archive tower", "A loose unfinished painted moon archive tower, silver shelves and star maps, night atmosphere, no characters, no text."),
-                _fake_asset("subject", "silver signal mask", "A simple recognizable silver signal mask with blue glass eyes, unfinished charcoal and paint texture, plain simple background, no text."),
-            ],
-        ),
-        "boat-fog-lantern": StoryFragment(
-            id=1,
-            mood="DARK",
-            text="A wooden ferry crosses a foggy harbor while its small cabin light keeps the route alive.",
-            start_s=0.0,
-            end_s=10.0,
-            image_prompt="A rough wooden ferry and foggy harbor background.",
-            visual_motif="boat in fog with lantern",
-            palette="blue grey, dark teal, warm gold",
-            motion="slow horizontal drift",
-            image_assets=[
-                _fake_asset("background", "foggy harbor", "A loose unfinished painted foggy harbor at night, blue grey mist, soft blurred docks, no boats, no text."),
-                _fake_asset("subject", "wooden ferry", "A simple recognizable wooden ferry with a tiny warm cabin light, unfinished painterly texture, plain simple background, no people, no text."),
-            ],
-        ),
-        "fox-snow-fire": StoryFragment(
-            id=1,
-            mood="BRIGHT",
-            text="An ember cart rolls through a volcanic workshop while cooled crystals ring under its wheels.",
-            start_s=0.0,
-            end_s=10.0,
-            image_prompt="An ember cart in a volcanic workshop, unfinished painted style.",
-            visual_motif="ember cart in volcanic workshop",
-            palette="basalt black, ember orange, mineral green",
-            motion="quick diagonal flicker",
-            image_assets=[
-                _fake_asset("background", "volcanic workshop", "A loose unfinished painted volcanic workshop, basalt lifts, glowing anvils, steam pipes, no characters, no text."),
-                _fake_asset("subject", "ember cart", "A simple recognizable ember cart with small copper wheels, unfinished painterly sketch texture, plain simple background, no text."),
-            ],
-        ),
-        "door-garden-key": StoryFragment(
-            id=1,
-            mood="DENSE",
-            text="A blue living door listens in a folk village square while market bells answer from the roofs.",
-            start_s=0.0,
-            end_s=10.0,
-            image_prompt="A rough blue living door in a folk village square, unfinished surreal style.",
-            visual_motif="blue living door in folk village",
-            palette="moss green, oxidized blue, brass yellow",
-            motion="uneven pulsing reveal",
-            image_assets=[
-                _fake_asset("background", "folk village square", "A loose unfinished painted European folk village square with painted doors, tiled roofs, market bells, no characters, no text."),
-                _fake_asset("subject", "blue living door", "A simple recognizable blue living door with brass hinges and a listening keyhole, unfinished painterly texture, plain simple background, no text."),
-            ],
-        ),
-    }
-    try:
-        return [catalog[name]]
-    except KeyError as exc:
-        options = ", ".join(fake_story_card_options())
-        raise ValueError(f"Unknown fake card: {name}. Available fake cards: {options}") from exc
-
-
-def _fake_asset(role: str, label: str, prompt: str) -> ImageAsset:
-    return ImageAsset(
-        role=role,
-        label=label,
-        prompt=prompt,
-        negative_prompt="text, letters, logo, watermark, instrument, photorealistic, distorted anatomy",
-    )
-
-
 def scene_cards_from_fragments(fragments: list[StoryFragment]) -> list[dict[str, object]]:
     return PipelineResult(
         run_id="image-only-input",
@@ -657,36 +535,3 @@ def scene_cards_from_fragments(fragments: list[StoryFragment]) -> list[dict[str,
         fragments=fragments,
         full_story="\n\n".join(fragment.text for fragment in fragments),
     ).scene_cards()
-
-
-def image_manifest_from_fragments(fragments: list[StoryFragment], metadata: dict[str, object]) -> dict[str, object]:
-    return {
-        "metadata": metadata,
-        "images": [
-            {
-                "segment_id": fragment.id,
-                "layer_index": layer_index,
-                "role": asset.role,
-                "label": asset.label,
-                "status": asset.status,
-                "local_path": asset.local_path,
-                "remote_url": asset.remote_url,
-                "source_url": asset.source_url,
-                "license": asset.license,
-                "creator": asset.creator,
-                "error": asset.error,
-            }
-            for fragment in fragments
-            for layer_index, asset in enumerate(fragment.image_assets)
-        ],
-    }
-
-
-def story_json_from_fragments(fragments: list[StoryFragment]) -> dict[str, object]:
-    return PipelineResult(
-        run_id="story-fragments",
-        audio_path="unknown",
-        music_segments=[],
-        fragments=fragments,
-        full_story="\n\n".join(fragment.text for fragment in fragments),
-    ).replay_story_json()

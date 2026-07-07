@@ -20,7 +20,7 @@ one-run timing experiments.
 | `BARD_FRAGMENT_MAX_S` | Python splitting | `src/bard_core/config.py` | env/config file or `--fragment-max-seconds` | Regenerate story, analysis, images | Preferred maximum for longer-audio automatic fragments. |
 | `BARD_SHORT_AUDIO_THRESHOLD_S` | Python splitting | `src/bard_core/config.py` | env/config file or `--short-audio-threshold-seconds` | Regenerate story, analysis, images | Below this duration, automatic splitting chooses only one or two balanced fragments. |
 | `--fragments N` | Python splitting | `src/bard_core/cli.py` | CLI only | Regenerate story, analysis, images | Forces exactly `N` balanced fragments. |
-| `--chunk-seconds S` | Python splitting | `src/bard_core/cli.py` | CLI only | Regenerate story, analysis, images | Preserves old fixed-size chunking, including any short final remainder. |
+| `--chunk-seconds S` | Python splitting | `src/bard_core/cli.py` | CLI only | Regenerate story, analysis, images | Uses fixed-size chunks, including any short final remainder. |
 | `BARD_MUSIC_WINDOWS_PER_FRAGMENT` | Python audio analysis | `src/bard_core/config.py` | env/config file or `--music-windows-per-fragment` | Rerun audio analysis and story generation | Number of fine observations inside each story fragment when fixed windows are not used. |
 | `BARD_LIVE_MUSIC_WINDOWS_PER_FRAGMENT` | Python live audio analysis | `src/bard_core/config.py` | env/config file or `--music-windows-per-fragment` | Rerun live command | Live-mode fine observations per story fragment. Default is `2`. |
 | `BARD_MUSIC_WINDOW_S` / `--music-window-seconds` | Python audio analysis | Optional env in `src/bard_core/config.py`; CLI in `src/bard_core/cli.py` | env/config file or CLI | Rerun audio analysis and story generation | Fixed observation length. If set, it overrides derived windows-per-fragment timing. |
@@ -35,9 +35,7 @@ one-run timing experiments.
 | `WORD_FLIGHT_PX_PER_SECOND` | Processing word entrance | `WordsSystem.pde` used by `SentenceDisplay.pde` | Edit Processing source | Replay existing `story.json` | Converts spawn-to-target distance into a natural linear flight duration. |
 | `MIN_LATE_SCENE_DURATION_S` | Processing sync fallback | `StoryDirector.pde` | Edit Processing source | Replay existing `story.json` | Minimum display time when a scene arrives after its scheduled audio end. |
 
-`BARD_READING_WPM` is accepted as a legacy env/CLI compatibility input and maps to the story WPM
-when no explicit `BARD_STORY_WPM` / `--story-wpm` is provided. `BARD_TEXT_COVERAGE` is deprecated
-for the main `run-fragments` path.
+Use `BARD_STORY_WPM` or `--story-wpm` for the displayed story word budget.
 
 ## Automatic Fragment Splitting
 
@@ -51,8 +49,8 @@ and chooses a balanced fragment count:
 - tiny final remainders are avoided because splitting is by balanced fragment count, not fixed step.
 
 The exact count follows the committed defaults in `src/bard_core/config.py`. Explicit
-`--fragments N` still forces exactly `N` balanced fragments. Explicit `--chunk-seconds S` keeps the
-old fixed-size behavior and can intentionally produce a short final chunk.
+`--fragments N` still forces exactly `N` balanced fragments. Explicit `--chunk-seconds S` uses
+fixed-size chunks and can intentionally produce a short final chunk.
 
 ## Music Windows
 
@@ -133,4 +131,4 @@ python -m bard_core --env-file "$ENV_FILE" send-osc `
 ```
 
 This sends existing text and image paths by default, and it auto-loads `processing_audio.wav` if that
-file is next to `story.json`. It does not call Gemini, Imagen, Openverse, or Replicate.
+file is next to `story.json`. It does not call Gemini, Imagen, or Openverse.

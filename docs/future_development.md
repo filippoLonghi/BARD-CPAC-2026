@@ -1,9 +1,11 @@
 # Future Development
 
-This document defines the next direction for BARD after the hackathon prototype.
+This document tracks possible next steps for BARD.
 
 This is a roadmap, not the current run guide. Use
 [running_the_pipeline.md](running_the_pipeline.md) for executable commands and current parameters.
+For practical limits and production notes, see
+[limitations_and_development.md](limitations_and_development.md).
 
 BARD is not meant to generate a finished video after the performance. The goal is a live or near-live system: the music starts, the system listens, a story begins to appear after a delay, images arrive after another delay, and text, colors, effects, and generated images are composed in real time into an abstract visual narration.
 
@@ -52,27 +54,26 @@ The final output should be more like a live visual organism than a pre-rendered 
 
 ## Processing Role
 
-Processing remains the live visual layer for now.
+Processing is the live visual layer.
 
-It should receive:
-
-```text
-/config/duration <seconds>
-/segment <mood> <story text>
-/image <path or url> <metadata>
-/visual <palette> <motion> <effect intensity>
-/start
-```
-
-Currently the system sends only:
+The active OSC contract already sends timing, story text, keywords, image paths, and start/finish
+signals:
 
 ```text
-/config/duration
-/segment
+/reset
+/prepare -> /ready
+/config/duration <float seconds>
+/config/streaming <int 0|1>
+/segment <int segment_id> <string mood> <string full_text> <float start_s> <float end_s>
+/keywords <int segment_id> <string...>
+/image <int segment_id> <int layer_index> <string role> <string local_path>
+/prime -> /primed
 /start
+/finish
 ```
 
-Future work should extend the OSC contract to include images and richer visual controls.
+The next useful contract extension is richer visual control: palette, motion quality, density,
+transition style, and effect intensity.
 
 Processing should not wait passively for images. It should always have procedural visuals available:
 
@@ -82,7 +83,8 @@ Processing should not wait passively for images. It should always have procedura
 - noise / fog / abstract fields
 - mood-based motion
 
-Generated images should enter the scene when ready, not block the performance.
+Generated images should enter the scene when ready, while procedural visuals keep the performance
+alive.
 
 ## Video Strategy
 
@@ -115,13 +117,13 @@ Possible provider types:
 ```text
 audio_provider = gemini | clap | custom_features | essentia | librosa
 story_provider = vertex | openai | anthropic | mistral | local
-image_provider = imagen | openai | stable_diffusion | replicate | fal | comfyui
+image_provider = imagen | openai | stable_diffusion | fal | comfyui
 video_provider = processing | touchdesigner | ffmpeg | veo | runway
 ```
 
 Vertex AI is useful because it is already connected to GCP, but it does not need to do everything.
 
-## Recommended Hybrid Direction
+## Hybrid Direction
 
 Gemini is convenient for audio, but it may not understand musical performance deeply enough by itself.
 
@@ -177,22 +179,25 @@ This should be more controllable than asking one multimodal model to understand 
 
 ## Near-Term Technical Objectives
 
-1. Stabilize the current cloud-oriented pipeline:
+1. Tighten the live pipeline:
 
 ```text
-audio file
+audio or microphone input
 -> Gemini / Vertex audio interpretation
--> Gemini / Vertex story generation
+-> story fragments
+-> image assets
 -> Processing via OSC
 ```
 
-2. Add a structured intermediate format:
+2. Keep the structured intermediate format useful:
 
 ```text
-scene_cards.json
+story.json
+run_manifest.json
+debug/scene_cards.json
 ```
 
-Each scene card should include:
+Scene data should stay easy to inspect:
 
 - segment id
 - start/end time
@@ -209,13 +214,16 @@ Each scene card should include:
 
 Start with simple local features using `librosa`, then combine with CLAP or another audio embedding model.
 
-4. Add image generation:
+4. Improve image generation:
 
-The image model should generate abstract keyframes, not final videos.
+- keep backgrounds and subjects visually coherent across fragments
+- reduce literal story illustration
+- improve cutout quality for subject assets
+- keep Openverse useful for free rehearsal runs
 
-5. Send generated images into Processing:
+5. Improve image delivery:
 
-Decide whether Processing receives:
+Processing currently receives local file paths. For remote or multi-machine runs, decide between:
 
 - local file paths
 - URLs from Cloud Storage
@@ -263,18 +271,18 @@ Owns the technical backbone.
 Tasks:
 
 - maintain project structure
-- maintain Docker / Cloud Run setup
+- maintain Docker and GCP setup
 - manage GCP project configuration
 - manage environment variables and secrets
 - define JSON schemas between stages
 - implement job orchestration
-- keep local and cloud runs reproducible
+- keep local and remote-model runs reproducible
 - monitor cost and latency
 
 Deliverables:
 
 - working local pipeline
-- working Cloud Run API
+- reproducible local and Docker runs
 - clear setup documentation
 - stable `runs/` outputs
 
@@ -358,16 +366,15 @@ Some tasks should involve the whole team:
 Goal:
 
 ```text
-audio -> story fragments -> Processing
+audio -> story fragments -> image assets -> Processing
 ```
-
-No generated images yet.
 
 Success criteria:
 
 - one command runs the pipeline
 - story appears in Processing
 - mood changes affect visual atmosphere
+- `background` and `subject` images are available for each scene when image generation is enabled
 - output files are saved in `runs/`
 
 ### Milestone 2: Hybrid Audio Analysis

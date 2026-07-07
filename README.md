@@ -2,13 +2,13 @@
 
 BARD is an after-score system: it listens to a unique human performance and turns it into a visible abstract narration.
 
-The current prototype is moving from a hackathon script toward a live architecture:
+BARD connects audio analysis, story generation, image assets, and a Processing sketch for live or near-live visuals:
 
 ```text
 audio
 -> performance / mood analysis
 -> story fragments
--> visual prompts and future image keyframes
+-> visual prompts and image assets
 -> Processing live composition
 ```
 
@@ -26,7 +26,6 @@ That guide covers:
 - joining or creating the shared GCP project
 - creating local private env files outside the repo
 - running the local orchestrator with Vertex AI
-- deploying and testing Cloud Run
 
 Each teammate should keep secrets outside this repo, using this assumed layout:
 
@@ -52,28 +51,28 @@ $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
   --image-provider openverse `
   --max-image-assets 2 `
   --send-osc `
-  --out-dir runs\arabesque-complete
+  --out-dir runs\dramatic-ending-complete
 ```
 
 Expected output:
 
 ```text
-runs/arabesque-complete/
+runs/dramatic-ending-complete/
   story.json
   run_manifest.json
   images/
 ```
 
 Normal runs write compact replay data in `story.json` and technical/debug metadata, including the
-elapsed timing trace, in `run_manifest.json`. Add `--debug-artifacts` to also write verbose legacy
-debug files under `debug/`, and `--keep-audio-chunks` to preserve per-fragment WAV chunks.
+elapsed timing trace, in `run_manifest.json`. Add `--debug-artifacts` for verbose debug files under
+`debug/`, and `--keep-audio-chunks` to preserve per-fragment WAV chunks.
 
 ## Processing Replay Without APIs
 
@@ -87,7 +86,7 @@ Press Run in Processing first, then replay the saved result:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
-  --story-json runs\arabesque-hybrid-test\story.json `
+  --story-json runs\dramatic-ending-complete\story.json `
   --delay 0
 ```
 
@@ -121,7 +120,7 @@ committed defaults live in `src/bard_core/config.py` and are mirrored in `config
 This preserves small musical changes without paying for a story call and two image calls for every
 observation.
 
-The story bible now selects one deterministic world profile from the first available music observations.
+The story bible selects one deterministic world profile from the first available music observations.
 The same descriptor chooses the same world, while different descriptors can move the story into places
 such as a clockwork city, radio tower, moon archive, storm airship, festival harbor, or medieval citadel.
 The Processing layout, story timing, WPM, scene duration, and stale-image persistence are intentionally unchanged.
@@ -140,25 +139,27 @@ Invalid Python moods normalize to `CALM` before OSC.
 Image assets are opt-in so normal runs do not spend money. Start with the free Openverse retrieval path:
 
 ```powershell
-python -m bard_core generate-images --fake-card --fake-card-name cat-wood-sun --image-provider openverse --write-input-only --out-dir runs\fake-card-preview
-python -m bard_core generate-images --fake-card --image-provider openverse --out-dir runs\fake-image-test
-python -m bard_core generate-images --list-fake-cards --image-provider openverse
-python -m bard_core generate-images --fake-card --fake-card-name boat-fog-lantern --image-provider openverse --out-dir runs\boat-image-test
+python -m bard_core --env-file "$ENV_FILE" generate-images `
+  --story-json runs\dramatic-ending-analysis\story.json `
+  --image-provider openverse `
+  --out-dir runs\dramatic-ending-images-openverse
 ```
 
-Then try generated images with FLUX or Imagen:
+Then try generated images with Imagen:
 
 ```powershell
-python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-provider replicate
-python -m bard_core --env-file "$ENV_FILE" generate-images --fake-card --image-provider imagen
+python -m bard_core --env-file "$ENV_FILE" generate-images `
+  --story-json runs\dramatic-ending-analysis\story.json `
+  --image-provider imagen `
+  --max-image-assets 1 `
+  --out-dir runs\dramatic-ending-images-imagen
 ```
 
-See [docs/image_generation.md](docs/image_generation.md) for API keys, costs, compact output files, and debugging.
+See [docs/image_generation.md](docs/image_generation.md) for image providers, costs, compact output files, and debugging.
 
-Current generated image assets are only `background` and `subject`. Symbol images are intentionally
-disabled for now. Generated subject assets are cut out in Python into transparent PNGs before Processing
-receives them; Processing uses alpha pixels for cutouts and only falls back to color flood-fill for
-non-alpha legacy images.
+Current generated image assets are only `background` and `subject`. Generated subject assets are cut out in Python into transparent PNGs before Processing
+receives them; Processing uses alpha pixels for cutouts and only falls back to color flood-fill when
+an input image has no alpha channel.
 
 ## Docker Quick Check
 
@@ -169,43 +170,23 @@ docker compose run --rm bard --help
 
 ## Documents
 
-- [docs/gcp_setup.md](docs/gcp_setup.md): team setup, GCP, local env, Cloud Run.
+- [docs/gcp_setup.md](docs/gcp_setup.md): team setup, GCP, and local env.
 - [docs/running_the_pipeline.md](docs/running_the_pipeline.md): canonical terminal commands and parameter effects.
 - [docs/docker.md](docs/docker.md): no-venv Docker Desktop build and complete pipeline commands.
 - [docs/future_development.md](docs/future_development.md): roadmap, live pipeline, model freedom, team roles.
-- [docs/image_generation.md](docs/image_generation.md): FLUX, Imagen, Openverse, scene cards, and Processing image OSC.
+- [docs/limitations_and_development.md](docs/limitations_and_development.md): known limits, latency, costs, and next steps.
+- [docs/image_generation.md](docs/image_generation.md): Imagen, Openverse, scene cards, and Processing image OSC.
 - [docs/architecture.md](docs/architecture.md): current technical architecture and provider structure.
 - [docs/pipeline_data.md](docs/pipeline_data.md): exact JSON and OSC data passed between every stage.
 - [docs/testing_and_costs.md](docs/testing_and_costs.md): test tracks, Processing order, commands, and per-run cost.
 - [docs/timing_and_sync.md](docs/timing_and_sync.md): audio master clock, reading speed, image reveals, and free replay.
 - [docs/project_structure.md](docs/project_structure.md): where files live in the repo.
+- [docs/public_release_checklist.md](docs/public_release_checklist.md): quick checks before publishing the repo.
 - [configs/local.example.env](configs/local.example.env): local private env template.
-- [deploy/cloud-run.env.example](deploy/cloud-run.env.example): Cloud Run env template.
+- [configs/timing.default.env](configs/timing.default.env): non-secret snapshot of shared timing defaults.
 
-## Current Direction
+## License
 
-Short term:
+Code and documentation are released under the [MIT License](LICENSE). Third-party media keep their
+own licenses; see [NOTICE.md](NOTICE.md) and [data/audio/README.md](data/audio/README.md).
 
-```text
-audio -> Gemini/Vertex story fragments -> Processing via OSC
-```
-
-Next development:
-
-```text
-audio features + CLAP/Gemini
--> scene cards
--> story fragments
--> image prompts
--> generated abstract image keyframes
--> Processing live composition
-```
-
-Longer term, BARD should be model-flexible:
-
-```text
-audio_provider = gemini | clap | librosa | essentia | custom
-story_provider = vertex | openai | anthropic | mistral | local
-image_provider = imagen | openai | stable_diffusion | replicate | fal | comfyui
-video_layer = processing | touchdesigner | ffmpeg | cloud video model
-```

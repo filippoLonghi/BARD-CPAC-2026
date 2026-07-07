@@ -55,8 +55,7 @@ Google documents that Gemini can detect emotion in music and analyze timestamped
 
 ## 3. Musical Observations To Dramatic Canvas
 
-Python locally translates measured valence, arousal, and tension into story-safe directions. This
-stage does not make another LLM call:
+Python locally translates measured valence, arousal, and tension into story-safe directions:
 
 ```json
 {
@@ -96,7 +95,7 @@ The design follows a child-friendly story map: characters, setting, plot, proble
 a beginning, middle, and end. The world profile keeps the story from defaulting to one repeated
 woodland/fairy mode; depending on audio descriptors, the setting can become a radio tower, moon
 archive, clockwork city, storm airship, desert caravan, festival harbor, medieval citadel, or another
-configured world. This selection is local Python logic, not another LLM call.
+configured world. 
 
 Sources:
 
@@ -136,7 +135,7 @@ generation jobs, OSC messages, or Processing draw order.
 
 Generated subject assets are postprocessed in Python into transparent PNGs before Processing receives
 them. Background/environment assets normally remain full-frame. Processing uses alpha pixels for
-cutouts and only falls back to color flood-fill for non-alpha legacy images.
+cutouts and only falls back to color flood-fill when an input image has no alpha channel.
 
 ## 6. Python To Processing
 
@@ -166,9 +165,8 @@ before its scene boundary.
 Python sends `/start` and starts local playback with `pygame` immediately afterward, or asks
 Processing to start preloaded audio when `--playback processing` is used. Processing follows the audio
 clock, not accumulated slide delays. If a later cloud scene is late or incomplete, Python logs it and
-does not send placeholders; Processing holds the previous visual state. This stale-image persistence
-is intentional for now and has not been changed. True microphone mode will replace the local player
-with the live input stream.
+does not send placeholders; Processing holds the previous visual state. Microphone mode uses the live
+input stream instead of local file playback.
 
 Canonical moods are shared exactly between Python and Processing:
 
@@ -225,4 +223,4 @@ processing_audio.wav Docker/Processing playback copy, only when needed
 
 `story.json` intentionally omits debug-only fields such as full music segments, story bible, story
 state, narrative phase, visual motif, palette, motion, and display text. They remain available in
-`run_manifest.json`, and the old verbose views can be written under `debug/` with `--debug-artifacts`.
+`run_manifest.json`, and verbose debug views can be written under `debug/` with `--debug-artifacts`.

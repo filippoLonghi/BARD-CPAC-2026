@@ -1,1 +1,1 @@
-"""Wrapped hackathon prototype code kept for compatibility."""
+"""Older package-level implementations kept outside the active pipeline."""

@@ -11,10 +11,9 @@ from .background_removal import postprocess_generated_image_asset
 from .imagen_provider import generate_imagen_image
 from .openverse_provider import retrieve_openverse_image
 from .planner import ensure_fragment_image_assets
-from .replicate_provider import generate_replicate_image
 
 
-SUPPORTED_IMAGE_PROVIDERS = {"replicate", "imagen", "openverse"}
+SUPPORTED_IMAGE_PROVIDERS = {"imagen", "openverse"}
 
 
 def generate_images_for_fragments(
@@ -81,12 +80,6 @@ def generate_images_for_fragments(
 
 def estimate_image_cost(provider: str, image_count: int) -> dict[str, object]:
     provider = provider.lower().strip()
-    if provider == "replicate":
-        cost = image_count * 0.003
-        return {
-            "estimated_cost_usd": round(cost, 4),
-            "message": f"Image estimate: {image_count} Replicate FLUX image(s) at about $3/1000 images ~= ${cost:.4f}.",
-        }
     if provider == "imagen":
         cost = image_count * 0.02
         return {
@@ -105,8 +98,6 @@ def estimate_image_cost(provider: str, image_count: int) -> dict[str, object]:
 
 
 def model_for_provider(provider: str, settings: BardSettings) -> str:
-    if provider == "replicate":
-        return settings.replicate_model
     if provider == "imagen":
         return settings.image_model
     if provider == "openverse":
@@ -124,15 +115,6 @@ def _generate_one(
 ) -> ImageAsset:
     if tracer:
         tracer.log("IMAGE start", fragment=fragment_id, role=asset.role, asset_label=asset.label, provider=provider)
-    if provider == "replicate":
-        generated = generate_replicate_image(asset, output_base_path, settings)
-        if tracer:
-            tracer.log("IMAGE generation done", fragment=fragment_id, role=asset.role, path=generated.local_path)
-            tracer.log("IMAGE postprocess start", fragment=fragment_id, role=asset.role)
-        processed = postprocess_generated_image_asset(generated, settings)
-        if tracer:
-            tracer.log("IMAGE postprocess done", fragment=fragment_id, role=asset.role, path=processed.local_path)
-        return processed
     if provider == "imagen":
         generated = generate_imagen_image(asset, output_base_path, settings)
         if tracer:

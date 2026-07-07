@@ -110,7 +110,7 @@ def run_sequential_pipeline(
     )
     chosen_image_provider = (image_provider or settings.image_provider).lower() if generate_images else "none"
     if generate_images and chosen_image_provider in {"", "none"}:
-        raise ValueError("Image generation is enabled. Choose imagen, replicate, or openverse.")
+        raise ValueError("Image generation is enabled. Choose imagen or openverse.")
     music_window_plans = [
         music_window_plan(
             plan.end_s - plan.start_s,

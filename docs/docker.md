@@ -34,7 +34,7 @@ docker compose run --rm --entrypoint python bard -m pytest
 
 ## Complete Imagen Test
 
-Open Processing and press **Run** first. This example uses `dark_suspense.ogg`, not Arabesque:
+Open Processing and press **Run** first. This example uses `dark_suspense.ogg`:
 
 ```powershell
 docker compose run --rm --service-ports `
@@ -79,54 +79,13 @@ with:
 
 and use a different output directory. Openverse retrieval has no image API charge.
 
-## Live Microphone Recording
+## Live Microphone Mode
 
-`run-live` is the performance-oriented path. It records microphone chunks and sends delayed visuals
-to Processing. It never plays music from Python or Processing; the performer supplies the music live.
-When image generation is enabled, BARD buffers complete story/image fragments before starting
-Processing. Open Processing and press **Run** first.
-
-On Windows laptops, run microphone live mode locally from the project `.venv`. Docker Desktop
-commonly does not expose the laptop microphone to Linux containers; if the container cannot see the
-mic, there is no `--input-device` value BARD can set to fix it.
-
-Check local input devices:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m bard_core run-live --list-input-devices
-python -m bard_core run-live --input-device 5 --test-input-seconds 5
-```
-
-Then run live recording, passing the device index printed by `--list-input-devices`:
-
-```powershell
-python -m bard_core --env-file "$ENV_FILE" run-live `
-  --duration-seconds 60 `
-  --chunk-seconds 15 `
-  --music-window-seconds 15 `
-  --startup-buffer-fragments 2 `
-  --input-device 5 `
-  --story-language Italian `
-  --story-level early-reader `
-  --generate-images `
-  --image-provider openverse `
-  --max-image-assets 2 `
-  --out-dir runs\live-mic-openverse
-```
-
-To review the completed live run later with the saved microphone recording:
-
-```powershell
-python -m bard_core --env-file "$ENV_FILE" replay-live `
-  --run-dir runs\live-mic-openverse `
-  --playback python `
-  --delay 0
-```
-
-Docker is still useful for `run-fragments --audio` and other file-based tests. It can also replay a
-completed live run if the run folder is mounted and you use `--playback processing`, but local Python
-is usually simpler for laptop microphone capture and recorded-audio replay.
+`run-live` is a local `.venv` workflow, not a Docker workflow. Docker Desktop commonly does not expose
+the laptop microphone to Linux containers; if the container cannot see the mic, there is no
+`--input-device` value BARD can set to fix it. Use this Docker guide for file-based
+`run-fragments --audio` tests, and use [running_the_pipeline.md](running_the_pipeline.md) for local
+microphone commands.
 
 ## Why `--playback processing` Is Required
 
@@ -164,8 +123,6 @@ verified a different model/location:
 BARD_IMAGE_PROVIDER=imagen
 BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001
 BARD_IMAGE_LOCATION=europe-west1
-BARD_IMAGEN_MODEL=imagen-4.0-fast-generate-001
-BARD_IMAGEN_LOCATION=europe-west1
 ```
 
 For a keyless team setup, each member can instead mount their Application Default Credentials file
@@ -178,13 +135,7 @@ Results remain visible on Windows under the selected `runs/<name>/` directory be
 is bind-mounted. Normal output is compact: `story.json`, `run_manifest.json`, and `images/`. Docker
 additionally creates `processing_audio.wav` for host Processing playback.
 
-`run-live` does not create `processing_audio.wav` and does not send `/audio`; the run manifest records
-`playback_mode: none`, `startup_buffer_fragments`, and the measured `visual_delay_s`. Live microphone
-audio is preserved under `recorded_audio_chunks/` and BARD attempts to write a combined
-`recorded_audio.wav` when the run ends.
-
-Generated image assets contain only `background` and `subject`. Symbol images are intentionally
-disabled for now. Python removes the background only from generated `subject` assets and writes
+Generated image assets contain only `background` and `subject`. Python removes the background only from generated `subject` assets and writes
 transparent PNGs before Processing receives them; `background` assets remain full-frame. The
 Processing visual layout, timing, and stale-image persistence behavior are intentionally unchanged.
 

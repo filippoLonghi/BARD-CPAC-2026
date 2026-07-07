@@ -119,8 +119,6 @@ For local development, teammates usually need:
 ```text
 Vertex AI User
 Storage Object Admin
-Cloud Run Developer
-Artifact Registry Writer
 Service Account User
 ```
 
@@ -167,22 +165,17 @@ Enable billing manually in the Google Cloud Console if it is not already enabled
 https://console.cloud.google.com/billing
 ```
 
-Most API-enable and deploy commands will fail until billing is active.
+Most API-enable commands will fail until billing is active.
 
 ## 4. Enable APIs
 
 ```powershell
 gcloud services enable aiplatform.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable artifactregistry.googleapis.com
 gcloud services enable storage.googleapis.com
-gcloud services enable secretmanager.googleapis.com
-gcloud services enable pubsub.googleapis.com
-gcloud services enable cloudtasks.googleapis.com
 ```
 
-For the first deployable version, only Vertex AI, Cloud Run, Cloud Build, and Artifact Registry are essential. Pub/Sub and Cloud Tasks are for the async architecture that follows.
+Vertex AI is required for Gemini/Imagen. Cloud Storage is optional, but useful when completed runs
+should also be copied to a shared bucket.
 
 ## 5. Create Runtime Service Account And Bucket
 
@@ -222,7 +215,7 @@ For local development, prefer Application Default Credentials:
 gcloud auth application-default login
 ```
 
-Avoid JSON service account keys unless absolutely needed. Cloud Run should use its attached service account, not a JSON key.
+Avoid JSON service account keys unless absolutely needed.
 
 If a JSON key is required for a specific local machine, keep it outside the repo:
 
@@ -244,13 +237,12 @@ cd "<workspace>\BARD-CPAC-2026"
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[api,cloud]"
+python -m pip install -e ".[cloud]"
 ```
 
 If `py` is not available, install Python and use `python -m venv .venv` instead.
 
-The active project path uses the cloud/Vertex providers. The old local batch prototype is legacy-only
-and is not exposed as a supported CLI command.
+The supported CLI path uses the cloud/Vertex providers through `python -m bard_core`.
 
 If the virtual environment gets confused after Python reinstall and you see `Unable to create process`, recreate it:
 
@@ -260,7 +252,7 @@ Remove-Item -Recurse -Force .venv
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[api,cloud]"
+python -m pip install -e ".[cloud]"
 ```
 
 ## 8. Create Private Local Env File
@@ -286,8 +278,6 @@ BARD_STORAGE_BUCKET=your-shared-gcp-project-id-bard-artifacts
 BARD_IMAGE_PROVIDER=imagen
 BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001
 BARD_IMAGE_LOCATION=europe-west1
-BARD_IMAGEN_MODEL=imagen-4.0-fast-generate-001
-BARD_IMAGEN_LOCATION=europe-west1
 BARD_REMOVE_IMAGE_BACKGROUND=true
 BARD_BACKGROUND_REMOVAL_PROVIDER=rembg
 ```
@@ -336,7 +326,7 @@ $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --out-dir runs\gcp-smoke-test
 ```
 
@@ -359,7 +349,7 @@ Processing/OSC path, only after opening `apps/processing/bard_story_visuals` in 
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --generate-images `
   --image-provider openverse `
   --send-osc `
@@ -370,81 +360,20 @@ Image generation notes:
 
 - The default GCP image model is `imagen-4.0-fast-generate-001`, with `europe-west1` as the
   expected location for the current working European setup.
-- `BARD_IMAGE_MODEL`/`BARD_IMAGE_LOCATION` are aliases for the older
-  `BARD_IMAGEN_MODEL`/`BARD_IMAGEN_LOCATION` names.
 - Do not switch to a newer model unless it is verified in the configured GCP location.
 - Generated subject images are cut out in Python before Processing receives them. Docker installs
   `rembg`, `onnxruntime`, and `Pillow` for that step.
 
-## 12. Build And Deploy To Cloud Run
+## 12. Repeatable Local Tests
 
-Set variables:
-
-```powershell
-$PROJECT_ID="your-shared-gcp-project-id"
-$REGION="europe-west1"
-$SA_NAME="bard-runtime"
-$SA_EMAIL="$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com"
-$BUCKET="$PROJECT_ID-bard-artifacts"
-gcloud config set project $PROJECT_ID
-```
-
-Create an Artifact Registry repository:
-
-```powershell
-gcloud artifacts repositories create bard-containers `
-  --repository-format=docker `
-  --location=$REGION `
-  --description="BARD containers"
-```
-
-If it already exists, continue.
-
-Build and push:
-
-```powershell
-$IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/bard-containers/bard-api:dev"
-gcloud builds submit --tag $IMAGE
-```
-
-Deploy:
-
-```powershell
-gcloud run deploy bard-api `
-  --image $IMAGE `
-  --region $REGION `
-  --service-account $SA_EMAIL `
-  --allow-unauthenticated `
-  --set-env-vars "BARD_GCP_PROJECT_ID=$PROJECT_ID,BARD_GCP_LOCATION=$REGION,BARD_STORAGE_BUCKET=$BUCKET,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=true,BARD_IMAGE_MODEL=imagen-4.0-fast-generate-001,BARD_IMAGE_LOCATION=$REGION,BARD_REMOVE_IMAGE_BACKGROUND=true,BARD_BACKGROUND_REMOVAL_PROVIDER=rembg"
-```
-
-For public demos, `--allow-unauthenticated` is convenient. For a real performance installation, use authenticated access.
-
-## 13. Call The Cloud Run API
-
-Get the URL:
-
-```powershell
-$SERVICE_URL=(gcloud run services describe bard-api --region $REGION --format "value(status.url)")
-```
-
-Upload an audio file:
-
-```powershell
-curl.exe -X POST "$SERVICE_URL/runs/sync?audio_provider=gemini&story_provider=vertex" `
-  -F "audio=@data/audio/audio.mp3"
-```
-
-The response contains `music_segments`, `fragments`, `full_story`, and future visual prompt fields.
-
-After this works, also test the local orchestrator against Vertex AI:
+After the smoke test works, run the local orchestrator against Vertex AI:
 
 ```powershell
 $WORKSPACE=(Resolve-Path ..).Path
 $ENV_FILE=Join-Path $WORKSPACE "Project\secrets\bard-local.env"
 
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --out-dir runs\vertex-orchestrator-test
 ```
 
@@ -452,7 +381,7 @@ Then, with Processing open, test the live OSC bridge:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --generate-images `
   --image-provider openverse `
   --send-osc `
@@ -462,8 +391,6 @@ python -m bard_core --env-file "$ENV_FILE" run-fragments `
 ## Notes On Secrets
 
 - `configs/local.example.env` is the template for each teammate's private laptop env file.
-- `deploy/cloud-run.env.example` is the template for deployed Cloud Run settings later.
 - Each teammate's actual local file should live outside the repo in their own `Project/secrets/bard-local.env`.
 - Local JSON keys stay outside this repo.
-- Cloud Run should use its attached service account, not a JSON key.
-- Later API keys, if any, should go into Secret Manager and be mounted/injected into Cloud Run.
+- Later API keys, if any, should stay outside the repo and be loaded from private env files.

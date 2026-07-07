@@ -1,4 +1,4 @@
-"""Cloud-ready BARD pipeline package."""
+"""BARD pipeline package."""
 
 __all__ = ["__version__"]
 

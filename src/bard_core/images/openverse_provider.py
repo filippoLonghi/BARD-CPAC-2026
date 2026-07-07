@@ -10,7 +10,7 @@ from .http_utils import download_image_url, read_json_url
 
 
 OPENVERSE_IMAGES_URL = "https://api.openverse.engineering/v1/images/"
-OPENVERSE_USER_AGENT = "BARD-CPAC-2026/0.1 university-project"
+OPENVERSE_USER_AGENT = "BARD-CPAC-2026/0.1"
 
 
 def retrieve_openverse_image(asset: ImageAsset, output_base_path: Path, settings: BardSettings) -> ImageAsset:

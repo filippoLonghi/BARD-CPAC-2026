@@ -91,8 +91,6 @@ class BardSettings:
     image_location: str
     remove_image_background: bool
     background_removal_provider: str
-    replicate_api_token: str | None
-    replicate_model: str
     imagen_model: str
     imagen_location: str
     osc_host: str
@@ -127,7 +125,7 @@ class BardSettings:
         root = repo_root()
         output_dir = Path(env_str("BARD_OUTPUT_DIR", str(root / "runs"))).expanduser()
         labelbank_path = Path(
-            env_str("BARD_LABELBANK_PATH", str(root / "data" / "labelbanks" / "clap_unified_labelbank.json"))
+            env_str("BARD_LABELBANK_PATH", str(root / "legacy" / "labelbanks" / "clap_unified_labelbank.json"))
         ).expanduser()
         image_model = (
             os.environ.get("BARD_IMAGE_MODEL")
@@ -175,8 +173,6 @@ class BardSettings:
             image_location=image_location,
             remove_image_background=env_bool("BARD_REMOVE_IMAGE_BACKGROUND", True),
             background_removal_provider=env_str("BARD_BACKGROUND_REMOVAL_PROVIDER", "rembg").lower(),
-            replicate_api_token=os.environ.get("BARD_REPLICATE_API_TOKEN") or os.environ.get("REPLICATE_API_TOKEN"),
-            replicate_model=env_str("BARD_REPLICATE_MODEL", "black-forest-labs/flux-schnell"),
             imagen_model=image_model,
             imagen_location=image_location,
             osc_host=env_str("BARD_OSC_HOST", "127.0.0.1"),

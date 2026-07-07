@@ -10,10 +10,6 @@ configs/
 
 data/
   audio/                     Single active location for input recordings and sample audio.
-  labelbanks/                CLAP labelbank files used by local analysis.
-
-deploy/
-  cloud-run.env.example      Cloud Run environment template.
 
 docs/
   docker.md                  Docker Desktop workflow and networking.
@@ -25,11 +21,15 @@ docs/
   project_structure.md       This file.
 
 legacy/
-  hackathon_2025/            Historical standalone prototype and demo scripts.
+  labelbanks/                CLAP labelbank files used by optional local analysis.
+  hackathon_2025/            Reference prototype and demo scripts.
 
 src/
   bard_core/                 Active Python package.
+    legacy/                  Previous package-level CLAP/Mistral batch code, kept for reference.
 ```
 
-The active pipeline is `src/bard_core`. Code under `legacy/hackathon_2025/` is historical reference
-only and is not imported by the current package.
+The active pipeline is `src/bard_core` without the package `legacy/` subfolder. Code under
+`legacy/hackathon_2025/` is the original prototype material. Code under `src/bard_core/legacy/`
+belongs to previous package-level experiments and compatibility wrappers, and is not used by
+`run-fragments` or `run-live`.

@@ -11,7 +11,7 @@ audio file
 -> optional OSC messages to Processing
 ```
 
-The new code lives in `src/bard_core`.
+The Python package lives in `src/bard_core`.
 
 - `contracts.py`: shared JSON/data contracts.
 - `audio/gemini_provider.py`: Vertex/Gemini audio analysis for a cloud-light path.
@@ -19,38 +19,45 @@ The new code lives in `src/bard_core`.
 - `story/music_translation.py`: musical observations to music-free dramatic directions.
 - `story/gemini_story.py`: persistent symbolic-adventure bible, deterministic audio-selected world profile, continuity state, and two visual assets per beat.
 - `pipeline_sequential.py`: uploaded-file stream simulation and planned-duration live foundation.
-- `images/`: optional image-keyframe providers for Replicate FLUX, Vertex Imagen, and Openverse retrieval.
+- `images/`: optional image-keyframe providers for Vertex Imagen and Openverse retrieval.
 - `transport/osc_sender.py`: sends `/config/duration`, `/segment`, optional `/image`, and `/start` to Processing.
 - Before cloud work, Python sends `/prepare`; Processing replies `/ready` on port 5007.
 - Before playback, Python sends `/prime`; Processing loads scene 1 and replies `/primed`.
-- `api.py`: small FastAPI service for Cloud Run experiments.
 
-Legacy CLAP/Mistral wrappers still exist in the source tree for reference, but the active project
-pipeline is `bard run-fragments` with Gemini/Vertex story generation.
+The active pipeline is `bard run-fragments` with Gemini/Vertex story generation.
 
 ## Active Mode
 
 ```text
 audio analysis: Gemini / Vertex AI
 story generation: Gemini / Vertex AI
-image assets: Openverse, Imagen, or Replicate when enabled
+image assets: Openverse or Imagen when enabled
 ```
 
 The active mode avoids hosting CLAP or Mistral yourself. It calls Vertex AI managed models and is
 the current path for local Docker/Processing runs.
+The older local CLAP and local Mistral wrappers are kept under `src/bard_core/legacy/` for reference;
+they are not imported by `run-fragments` or `run-live`.
+
+## API Surface
+
+`src/bard_core/api.py` contains a small FastAPI application with a health endpoint. It is not the
+main way to run BARD at the moment: the synchronous `/runs/sync` endpoint is disabled and points back
+to the supported CLI path, `bard run-fragments`.
+
+This means the API code is best read as a starting point for a future deployed service. A Cloud Run
+deployment would make sense later because the project already uses Docker, GCP credentials, Vertex AI,
+and optional Cloud Storage upload. The missing work is orchestration: accepting an audio upload,
+starting a run, storing artifacts, reporting run status, and delivering image/audio paths back to a
+local Processing bridge.
 
 ## Persistence On GCP
 
 In the current sequential runner, `BARD_STORAGE_BUCKET` enables a final recursive upload of the run
 directory to `gs://<bucket>/runs/<run-id>/`. This includes JSON contracts, story text, audio chunks,
 images, and the Docker/Processing playback WAV when present. A mounted Docker workspace still keeps
-the same files locally; a Cloud Run filesystem is temporary, so GCS is the durable copy there.
-
-A complete managed deployment should keep raw uploaded audio and durable run artifacts in Cloud
-Storage, credentials in Secret Manager or workload identity, and optional searchable run status in
-Firestore/Cloud SQL. Vertex AI model execution itself does not create application files in the BARD
-bucket. Host Processing remains outside Cloud Run and will eventually need signed/download URLs or a
-local bridge instead of filesystem paths.
+the same files locally. Vertex AI model execution itself does not create application files in the BARD
+bucket.
 
 ## Processing Contract
 
@@ -80,32 +87,11 @@ The same list must appear in `src/bard_core/contracts.py::MOOD_LABELS` and Proce
 
 See [pipeline_data.md](pipeline_data.md) for concrete JSON examples and field ownership.
 
-## Target GCP Shape
-
-```text
-local performance machine
--> Cloud Run API
--> Vertex AI Gemini for audio/story
--> Cloud Storage for audio + generated artifacts
--> Cloud Tasks or Pub/Sub for async workers
--> local OSC/WebSocket bridge for Processing or TouchDesigner
-```
-
-The current `api.py` is synchronous on purpose. It is the smallest deployable step. Small local audio files are sent to Gemini inline; larger files can be uploaded to Cloud Storage when `BARD_STORAGE_BUCKET` is set. Each run can also upload JSON outputs to Cloud Storage. Once this works, split it into:
-
-- request API
-- audio/story worker
-- image worker
-- video/composition worker
-- local bridge
-
-## Next Architecture Step
-
-Image generation is now available as an optional provider stage:
+Image generation is an optional provider stage:
 
 ```text
 StoryFragment.image_assets
--> replicate | imagen | openverse
+-> imagen | openverse
 -> Python subject cutout to transparent PNG when generated
 -> runs/<run_id>/images/
 -> /image OSC paths
@@ -114,8 +100,8 @@ StoryFragment.image_assets
 
 Current image roles are only `background` and `subject`; symbol images are intentionally disabled.
 The Processing visual layout, timing, and stale-image persistence are intentionally unchanged.
-For the final performance, keep a procedural fallback live locally while cloud-generated assets arrive with a deliberate delay.
+For the final performance, keep a procedural fallback live locally while generated assets arrive with a deliberate delay.
 
-Normal story runs keep `image_provider=none`. Pass `--generate-images --image-provider openverse|replicate|imagen`
+Normal story runs keep `image_provider=none`. Pass `--generate-images --image-provider openverse|imagen`
 to create image assets. Normal runs write compact `story.json` plus `run_manifest.json`; add
 `--debug-artifacts` for verbose `debug/scene_cards.json`.

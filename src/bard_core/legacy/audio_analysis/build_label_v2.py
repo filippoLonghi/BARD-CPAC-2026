@@ -348,7 +348,7 @@ def main():
     p.add_argument("--max_chars", type=int, default=100)
     p.add_argument("--seed", type=int, default=3)
     p.add_argument("--oversample_factor", type=int, default=10)
-    p.add_argument("--out_dir", default="data/labelbanks", help="Directory for CLAP labelbank outputs.")
+    p.add_argument("--out_dir", default="legacy/labelbanks", help="Directory for CLAP labelbank outputs.")
 
     # toggles (Python 3.9+)
     boo = argparse.BooleanOptionalAction

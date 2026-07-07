@@ -127,7 +127,6 @@ INPUT:
 
 
 def translate_music_to_story_cues_local(segments: list[MusicSegment]) -> list[MusicSegment]:
-    """Map measured music features to story directions without another API call."""
     previous_tension: float | None = None
     for segment in segments:
         arousal = _number(segment.arousal, 0.5)

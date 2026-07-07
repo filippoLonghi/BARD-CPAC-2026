@@ -360,14 +360,6 @@ English design spec — species/object type, body shape, dominant colors, distin
 Future image prompts must repeat this spec exactly.
 Beat_plan: one concrete irreversible event per part, not just a direction. Final beat resolves everything.
 
-Forbidden defaults:
-- Forest, woods, or trees as primary setting.
-- Fox, rabbit, bear, deer, owl, insect, or common woodland animal as protagonist or antagonist.
-- Witch, wizard, or generic evil sorcerer as antagonist.
-- Quest to retrieve a stolen object as the sole plot.
-- Moral about friendship or courage stated explicitly at the end.
-- Direct copy of a famous folk story, myth, or already-known character.
-
 Dramatic arc of the music this story will accompany:
 {arc_summary}
 """
@@ -379,7 +371,7 @@ Dramatic arc of the music this story will accompany:
 def choose_world_profile(segments: list[MusicSegment]) -> dict[str, str]:
     """
     Choose a repeatable story world from the first available music observations.
-    No external API call. Deterministic for the same descriptors.
+    Deterministic for the same descriptors.
     """
     descriptor = _music_descriptor_text(segments)
     lowered = descriptor.lower()

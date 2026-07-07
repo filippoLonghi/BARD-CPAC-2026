@@ -3,9 +3,13 @@
 .processing-build/
 .uv-cache/
 .uv-python/
+.ruff_cache/
+.mypy_cache/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+htmlcov/
+.coverage
 *.egg-info/
 
 # Local configuration and credentials
@@ -16,6 +20,8 @@ secrets/
 *.key.json
 *-key.json
 .codex_tmp*/
+.codex/
+.agents/
 
 # Generated pipeline outputs
 runs/
@@ -24,6 +30,12 @@ outputs/
 /story.json
 /full_story.txt
 /temp_voice.mp3
+data/audio/local/
+data/audio/private/
+data/audio/audio_private/
 
 code_versions/
 runs_old.zip
+
+# Local-only development checks
+tests/

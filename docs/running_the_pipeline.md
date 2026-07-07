@@ -24,14 +24,14 @@ synchronized audio playback, and Processing:
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
   --image-provider openverse `
   --max-image-assets 2 `
   --send-osc `
-  --out-dir runs\arabesque-complete
+  --out-dir runs\dramatic-ending-complete
 ```
 
 Openverse has no image API charge. Gemini audio and story calls still use GCP.
@@ -40,14 +40,14 @@ Openverse has no image API charge. Gemini audio and story calls still use GCP.
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
+  --audio data\audio\dramatic_ending.ogg `
   --story-language Italian `
   --story-level early-reader `
   --generate-images `
   --image-provider imagen `
   --max-image-assets 2 `
   --send-osc `
-  --out-dir runs\arabesque-imagen
+  --out-dir runs\dramatic-ending-imagen
 ```
 
 The number of scenes depends on the committed timing defaults in `src/bard_core/config.py` or any CLI
@@ -58,7 +58,7 @@ overrides. At `$0.02` per Imagen 4 Fast image, the image portion is roughly
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" send-osc `
-  --story-json runs\arabesque-hybrid-test\story.json `
+  --story-json runs\dramatic-ending-complete\story.json `
   --delay 0
 ```
 
@@ -70,12 +70,12 @@ run folder contains `processing_audio.wav`, audio is also preloaded in Processin
 
 ```powershell
 python -m bard_core --env-file "$ENV_FILE" run-fragments `
-  --audio data\audio\arabesque.mp3 `
-  --out-dir runs\arabesque-analysis
+  --audio data\audio\dramatic_ending.ogg `
+  --out-dir runs\dramatic-ending-analysis
 ```
 
 Inspect `story.json` and `run_manifest.json` in that output directory. Add `--debug-artifacts` and
-`--keep-audio-chunks` when you need the old verbose files or exact chunk WAVs.
+`--keep-audio-chunks` when you need verbose debug files or exact chunk WAVs.
 
 ## Live Visuals
 
@@ -166,24 +166,23 @@ debug/full_story.txt
 | `--story-level early-reader` | Vocabulary and sentence complexity: `early-reader`, `children`, `general`, or `literary`. |
 | `--story-wpm 70` | Target displayed story words per minute. Higher values permit more words. |
 | `--fragment-target-seconds 60` | Automatic balanced-splitting target duration. Usually omit and use the default. |
-| `--music-windows-per-fragment 4` | Fine observations per story fragment when fixed music windows are not set. |
+| `--music-windows-per-fragment 2` | Fine observations per story fragment when fixed music windows are not set. |
 | `--music-window-seconds 15` | Optional fixed fine-observation size. Overrides derived windows-per-fragment timing. |
-| `--chunk-seconds 60` | Debug override that preserves old fixed-size story-scene chunks. |
+| `--chunk-seconds 60` | Debug override that uses fixed-size story-scene chunks. |
 | `--fragments 3` | Debug alternative that divides the file into exactly N balanced story scenes. |
 | `--planned-duration 600` | Live-performance simulation: plans the story arc for this duration, while an uploaded file still ends at its real end. |
 | `--words-per-fragment 80` | Manual word target. Normally omit it so fragment duration and `--story-wpm` calculate the target. |
 | `--generate-images` | Enables image retrieval/generation. Without it, no image provider runs. |
 | `--image-provider openverse` | Free retrieval for tests. |
 | `--image-provider imagen` | Paid Vertex AI image generation. |
-| `--image-provider replicate` | Optional paid Replicate/FLUX experiment requiring its API token. |
 | `--max-image-assets 2` | Maximum images per scene. Current roles are `background` and `subject`; Imagen cost scales directly with this value. |
 | `--startup-delay 1.5` | Extra delay before Processing primes scene one. |
 | `--startup-buffer-fragments 2` | Complete story/image fragments to prepare before Processing starts. Use `1` for faster start, or higher values for more safety. |
 | `--playback python` | Local default. Use `processing` when Python runs inside Docker Desktop. |
 | `--send-osc` | Sends data to Processing and plays the source audio. Requires `--generate-images` so playback never starts story-only. |
-| `--debug-artifacts` | Writes verbose legacy-style JSON/text files under `debug/`. |
+| `--debug-artifacts` | Writes verbose JSON/text files under `debug/`. |
 | `--keep-audio-chunks` | Preserves per-fragment WAV chunks under `audio_chunks/`; otherwise chunks are temporary and removed after analysis. |
-| `--out-dir PATH` | Output directory. Use a new directory for each cloud run. |
+| `--out-dir PATH` | Output directory. Use a new directory for each run. |
 
 Replay-only `send-osc` parameters:
 
@@ -211,7 +210,7 @@ Live-only `run-live` parameters:
 | `--music-window-seconds S` | Fixed live music-analysis window. Use `15` with `--chunk-seconds 15` for one music window per fragment. |
 | `--startup-buffer-fragments N` | Complete live fragments to prepare before the Processing visual clock starts. Defaults to `BARD_LIVE_STARTUP_BUFFER_FRAGMENTS`, currently `2`. |
 | `--generate-images` | Enables image retrieval/generation. In live mode, generated images are sent with their fragment before Processing starts displaying that buffered fragment. |
-| `--image-provider openverse|imagen|replicate` | Image backend for delayed `/image` messages. |
+| `--image-provider openverse|imagen` | Image backend for delayed `/image` messages. |
 
 Replay-only `replay-live` parameters:
 
@@ -226,10 +225,6 @@ Replay-only `replay-live` parameters:
 Live recordings are saved inside the run folder as `recorded_audio_chunks/segment_*.wav`. BARD also
 attempts to write a combined `recorded_audio.wav` at the end of the run; if that combine step fails,
 the original chunks remain available.
-
-Creative timing defaults live in code. `configs/timing.default.env` mirrors those defaults as a
-non-secret reference. Do not put timing values in the private secrets env by default. A command-line
-option overrides the corresponding setting for one run.
 
 ## Recommended Adjustments
 
